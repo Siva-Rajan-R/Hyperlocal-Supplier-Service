@@ -1,0 +1,2 @@
+ENV_PREFIX="SUPPLIER_"
+SERVICE_NAME="suppliers"
