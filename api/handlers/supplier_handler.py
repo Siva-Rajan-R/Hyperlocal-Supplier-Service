@@ -16,7 +16,7 @@ class HandleSupplierRequest(BaseServiceModel):
 
 
     async def create(self,data:CreateSupplierSchema):
-        await validate_fields(service_name="SUPPLIER",shop_id="",incoming_fields=data.datas)
+        # await validate_fields(service_name="SUPPLIER",shop_id="",incoming_fields=data.datas)
 
         res=await SupplierService(session=self.session).create(data=data)
         if not res:
@@ -40,7 +40,7 @@ class HandleSupplierRequest(BaseServiceModel):
 
 
     async def update(self,data:UpdateSupplierSchema):
-        await validate_fields(service_name="SUPPLIER",shop_id="",incoming_fields=data.datas)
+        # await validate_fields(service_name="SUPPLIER",shop_id="",incoming_fields=data.datas)
         res=await SupplierService(session=self.session).update(data=data)
         if not res:
             raise HTTPException(
