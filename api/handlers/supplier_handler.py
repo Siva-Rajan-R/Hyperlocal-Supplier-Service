@@ -1,3 +1,4 @@
+from icecream import ic
 from schemas.v1.request_schema.supplier_schema import CreateSupplierSchema,UpdateSupplierSchema
 from models.service_models.base_service_model import BaseServiceModel
 from hyperlocal_platform.core.models.req_res_models import SuccessResponseTypDict,ErrorResponseTypDict,BaseResponseTypDict
@@ -17,7 +18,7 @@ class HandleSupplierRequest(BaseServiceModel):
 
     async def create(self,data:CreateSupplierSchema):
         # await validate_fields(service_name="SUPPLIER",shop_id="",incoming_fields=data.datas)
-
+        ic(data)
         res=await SupplierService(session=self.session).create(data=data)
         if not res:
             raise HTTPException(
@@ -41,13 +42,14 @@ class HandleSupplierRequest(BaseServiceModel):
 
     async def update(self,data:UpdateSupplierSchema):
         # await validate_fields(service_name="SUPPLIER",shop_id="",incoming_fields=data.datas)
+        
         res=await SupplierService(session=self.session).update(data=data)
         if not res:
             raise HTTPException(
                 status_code=400,
                 detail=ErrorResponseTypDict(
                     msg="Error : Updating supplier",
-                    description="Invalid supplier id or barcode for updating suppliers",
+                    description="Invalid supplier id or shop_id for updating suppliers",
                     status_code=400,
                     success=False
                 )

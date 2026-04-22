@@ -9,6 +9,7 @@ from hyperlocal_platform.core.enums.timezone_enum import TimeZoneEnum
 from hyperlocal_platform.core.utils.uuid_generator import generate_uuid
 from core.decorators.error_handler_dec import catch_errors
 from typing import Optional
+from icecream import ic
 
 class SupplierService(BaseServiceModel):
     def __init__(self, session:AsyncSession):
@@ -18,8 +19,10 @@ class SupplierService(BaseServiceModel):
     async def create(self,data:CreateSupplierSchema):
         
         supplier_id:str=generate_uuid()
+        ic(data.datas)
         data=CreateSupplierDbSchema(
-            **data.model_dump(mode='json'),
+            datas=data.datas.model_dump(mode="json"),
+            shop_id=data.datas.shop_id,
             id=supplier_id
         )
 
@@ -30,7 +33,11 @@ class SupplierService(BaseServiceModel):
         return data
     
     async def update(self,data:UpdateSupplierSchema):
-        data=UpdateSupplierDbSchema(**data.model_dump(mode='json',exclude_none=True,exclude_unset=True))
+        data=UpdateSupplierDbSchema(
+            datas=data.datas.model_dump(mode="json"),
+            shop_id=data.datas.shop_id,
+            id=data.datas.id
+        )
         res=await self.supplier_repo_obj.update(data=data)
         if not res:
             return False
