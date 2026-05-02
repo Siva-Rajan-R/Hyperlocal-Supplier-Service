@@ -1,6 +1,7 @@
 from ..main import AsyncSession
-from ..repos.supplier_repo import SupplierRepo,CreateSupplierDbSchema,UpdateSupplierDbSchema
-from schemas.v1.request_schema.supplier_schema import CreateSupplierSchema,UpdateSupplierSchema
+from ..repos.supplier_repo import SupplierRepo
+from schemas.v1.db_schemas.supplier_schema import CreateSupplierDbSchema,UpdateSupplierDbSchema
+from schemas.v1.request_schemas.supplier_schema import CreateSupplierSchema,UpdateSupplierSchema,DeleteSupplierSchema,GetAllSupplierSchema,GetSupplierById,GetSupplierByShopIdSchema,VerifySupplierSchema
 from models.service_models.base_service_model import BaseServiceModel
 from hyperlocal_platform.core.models.req_res_models import SuccessResponseTypDict,ErrorResponseTypDict,BaseResponseTypDict
 from fastapi.exceptions import HTTPException
@@ -8,7 +9,7 @@ from hyperlocal_platform.core.decorators.db_session_handler_dec import start_db_
 from hyperlocal_platform.core.enums.timezone_enum import TimeZoneEnum
 from hyperlocal_platform.core.utils.uuid_generator import generate_uuid
 from core.decorators.error_handler_dec import catch_errors
-from typing import Optional
+from typing import Optional,List
 from icecream import ic
 
 class SupplierService(BaseServiceModel):
@@ -16,55 +17,45 @@ class SupplierService(BaseServiceModel):
         super().__init__(session)
         self.supplier_repo_obj=SupplierRepo(session=session)
 
-    async def create(self,data:CreateSupplierSchema):
+    async def create(self,data:CreateSupplierSchema)-> dict | None:
         
         supplier_id:str=generate_uuid()
         ic(data.datas)
         data=CreateSupplierDbSchema(
-            datas=data.datas.model_dump(mode="json"),
-            shop_id=data.datas.shop_id,
+            **data.model_dump(mode="json",exclude_none=True,exclude_unset=True),
             id=supplier_id
         )
 
         res=await self.supplier_repo_obj.create(data=data)
-        if not res:
-            return False
-        
-        return data
+        return res
     
-    async def update(self,data:UpdateSupplierSchema):
-        data=UpdateSupplierDbSchema(
-            datas=data.datas.model_dump(mode="json"),
-            shop_id=data.datas.shop_id,
-            id=data.datas.id
-        )
+    async def update(self,data:UpdateSupplierSchema)-> dict | None:
+        data=UpdateSupplierDbSchema(**data.model_dump(mode="json",exclude_unset=True,exclude_none=True))
         res=await self.supplier_repo_obj.update(data=data)
-        if not res:
-            return False
-        
-        return True
+        return res
 
-    async def delete(self,supplier_id:str,shop_id:str):
-        res=await self.supplier_repo_obj.delete(supplier_id=supplier_id,shop_id=shop_id)
-        if not res:
-            return False
-        
-        return True
-
-
-    async def get(self,timezone:TimeZoneEnum,query:Optional[str]="",limit:Optional[int]=10,offset:int=1):
-        offset=offset-1
-        res=await self.supplier_repo_obj.get(query=query,limit=limit,offset=offset,timezone=timezone)
+    async def delete(self,data:DeleteSupplierSchema)-> dict | None:
+        res=await self.supplier_repo_obj.delete(data=data)
         return res
 
 
-    async def getby_id(self,timezone:TimeZoneEnum,supplier_id:str,shop_id:str):
-        res=await self.supplier_repo_obj.getby_id(timezone=timezone,supplier_id=supplier_id,shop_id=shop_id)
+    async def get(self,data:GetAllSupplierSchema)-> List[dict] | list:
+        res=await self.supplier_repo_obj.get(data=data)
+        return res
+
+
+    async def getby_id(self,data:GetSupplierById)-> dict | None:
+        res=await self.supplier_repo_obj.getby_id(data=data)
         return res
     
-    async def getby_mobile_no(self,mobile_no:str,shop_id:str,timezone:TimeZoneEnum=TimeZoneEnum.Asia_Kolkata):
-        res=await self.supplier_repo_obj.getby_mobile_number(timezone=timezone,mobile_no=mobile_no,shop_id=shop_id)
+    async def getby_shop_id(self,data:GetSupplierByShopIdSchema)-> List[dict] | list:
+        res=await self.supplier_repo_obj.getby_shop_id(data=data)
         return res
+    
+    async def verify(self,data:VerifySupplierSchema)-> dict:
+        res=await self.supplier_repo_obj.verify(data=data)
+        return res
+
     
 
     async def search(self, query:str, limit:Optional[int]=5):

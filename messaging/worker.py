@@ -1,5 +1,5 @@
 from .main import RabbitMQMessagingConfig,ExchangeType
-from .controllers.controller import ConsumersHandler
+from .controllers.service_controller import service_main_controller
 import asyncio
 
 async def worker():
@@ -8,8 +8,7 @@ async def worker():
 
     # Exchanges
     exchanges=[
-        {'name':'purchase.purchase.suppliers.exchange','exc_type':ExchangeType.TOPIC},
-        {'name':'products.purchase.suppliers.exchange','exc_type':ExchangeType.TOPIC}
+        {'name':'suppliers.service.exchange','exc_type':ExchangeType.DIRECT}
     ]
 
     for exchange in exchanges:
@@ -17,8 +16,7 @@ async def worker():
 
     # Queues
     queues=[
-        {'exc_name':'purchase.purchase.suppliers.exchange','q_name':'purchase.purchase.suppliers.queue','r_key':'purchase.purchase.*.*.v1'},
-        {'exc_name':'products.purchase.suppliers.exchange','q_name':'products.purchase.suppliers.queue','r_key':'products.purchase.*.*.v1'}
+        {'exc_name':'suppliers.service.exchange','q_name':'suppliers.service.queue','r_key':'suppliers.service.routing.key'}
     ]
 
     for queue in queues:
@@ -30,17 +28,11 @@ async def worker():
 
     # Consumers
     consumers=[
-        {'q_name':'purchase.purchase.suppliers.queue','handler':ConsumersHandler.main_handler},
-        {'q_name':'products.purchase.suppliers.queue','handler':ConsumersHandler.main_handler}
+        {'q_name':'suppliers.service.queue','handler':service_main_controller}
     ]
 
     for consumer in consumers:
+
         await rabbitmq_msg_obj.consume_event(queue_name=consumer['q_name'],handler=consumer['handler'])
 
     await asyncio.Event().wait()
-
-    
-
-
-
-    

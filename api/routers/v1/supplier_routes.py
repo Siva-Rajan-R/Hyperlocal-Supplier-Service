@@ -3,7 +3,8 @@ from typing import Annotated
 from infras.primary_db.main import get_pg_async_session,AsyncSession
 from hyperlocal_platform.core.enums.timezone_enum import TimeZoneEnum
 from core.utils.validate_fields import validate_fields
-from ...handlers.supplier_handler import HandleSupplierRequest,CreateSupplierSchema,UpdateSupplierSchema
+from ...handlers.supplier_handler import HandleSupplierRequest
+from schemas.v1.request_schemas.supplier_schema import CreateSupplierSchema,UpdateSupplierSchema,DeleteSupplierSchema,GetAllSupplierSchema,GetSupplierById,GetSupplierByShopIdSchema,VerifySupplierSchema
 from typing import Optional,List
 print(TimeZoneEnum)
 
@@ -24,27 +25,23 @@ async def create(data:CreateSupplierSchema,session:PG_ASYNC_SESSION):
 async def update(data:UpdateSupplierSchema,session:PG_ASYNC_SESSION):
     return await HandleSupplierRequest(session=session).update(data=data)
 
-@router.delete('/{supplier_id}')
-async def delete(supplier_id:str,session:PG_ASYNC_SESSION):
-    return await HandleSupplierRequest(session=session).delete(supplier_id=supplier_id,shop_id=SHOP_ID)
+@router.delete('/{shop_id}/{supplier_id}')
+async def delete(session:PG_ASYNC_SESSION,data:DeleteSupplierSchema=Depends()):
+    return await HandleSupplierRequest(session=session).delete(data=data)
 
 
 # Read methods
-@router.get('/search')
-async def search(session:PG_ASYNC_SESSION,q:str=Query(...),limit:Optional[int]=Query(5)):
-    return await HandleSupplierRequest(session=session).search(query=q,limit=limit)
 
-@router.get('/by/{supplier_id}')
-async def get(session:PG_ASYNC_SESSION,supplier_id:str,timezone:Optional[TimeZoneEnum]=Query(TimeZoneEnum.Asia_Kolkata)):
-    return await HandleSupplierRequest(session=session).getby_id(supplier_id=supplier_id,shop_id=SHOP_ID,timezone=timezone)
+@router.get('/by/{shop_id}/{supplier_id}')
+async def get(session:PG_ASYNC_SESSION,data:GetSupplierById=Depends()):
+    return await HandleSupplierRequest(session=session).getby_id(data=data)
 
 @router.get('')
-async def get(session:PG_ASYNC_SESSION,timezone:Optional[TimeZoneEnum]=Query(TimeZoneEnum.Asia_Kolkata),q:Optional[str]=Query(''),limit:Optional[int]=Query(10),offset:int=Query(1)):
-    return await HandleSupplierRequest(session=session).get(
-        query=q,
-        limit=limit,
-        offset=offset,
-        timezone=timezone
-    )
+async def get(session:PG_ASYNC_SESSION,data:GetAllSupplierSchema=Depends()):
+    return await HandleSupplierRequest(session=session).get(data=data)
+
+@router.get('/{shop_id}')
+async def getby_shop_id(session:PG_ASYNC_SESSION,data:GetSupplierByShopIdSchema=Depends()):
+    return await HandleSupplierRequest(session=session).getby_shop_id(data=data)
 
 

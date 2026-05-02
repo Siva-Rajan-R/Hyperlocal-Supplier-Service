@@ -1,5 +1,6 @@
 from icecream import ic
-from schemas.v1.request_schema.supplier_schema import CreateSupplierSchema,UpdateSupplierSchema
+from schemas.v1.request_schemas.supplier_schema import CreateSupplierSchema,UpdateSupplierSchema,DeleteSupplierSchema,GetSupplierByShopIdSchema,GetAllSupplierSchema,GetSupplierById
+from schemas.v1.response_schemas.user_schemas.supplier_schema import SupplierContactInfoTypDict,SupplierCreateResponseSchema,SupplierDeleteResponseSchema,SupplierGetResponseSchema,SupplierUpdateResponseSchema
 from models.service_models.base_service_model import BaseServiceModel
 from hyperlocal_platform.core.models.req_res_models import SuccessResponseTypDict,ErrorResponseTypDict,BaseResponseTypDict
 from fastapi.exceptions import HTTPException
@@ -17,8 +18,6 @@ class HandleSupplierRequest(BaseServiceModel):
 
 
     async def create(self,data:CreateSupplierSchema):
-        # await validate_fields(service_name="SUPPLIER",shop_id="",incoming_fields=data.datas)
-        ic(data)
         res=await SupplierService(session=self.session).create(data=data)
         if not res:
             raise HTTPException(
@@ -36,13 +35,12 @@ class HandleSupplierRequest(BaseServiceModel):
                 msg="Supplier created successfully",
                 status_code=201,
                 success=True
-            )
+            ),
+            data=SupplierCreateResponseSchema(**res) if res else None
         )
 
 
     async def update(self,data:UpdateSupplierSchema):
-        # await validate_fields(service_name="SUPPLIER",shop_id="",incoming_fields=data.datas)
-        
         res=await SupplierService(session=self.session).update(data=data)
         if not res:
             raise HTTPException(
@@ -60,12 +58,13 @@ class HandleSupplierRequest(BaseServiceModel):
                 msg="Supplier updated successfully",
                 status_code=200,
                 success=True
-            )
+            ),
+            data=SupplierUpdateResponseSchema(**res) if res else None
         )
 
 
-    async def delete(self,supplier_id:str,shop_id:str):
-        res=await SupplierService(session=self.session).delete(supplier_id=supplier_id,shop_id=shop_id)
+    async def delete(self,data:DeleteSupplierSchema):
+        res=await SupplierService(session=self.session).delete(data=data)
         if not res:
             raise HTTPException(
                 status_code=400,
@@ -82,31 +81,43 @@ class HandleSupplierRequest(BaseServiceModel):
                 msg="Supplier deleted successfully",
                 status_code=200,
                 success=True
-            )
+            ),
+            data=SupplierDeleteResponseSchema(**res) if res else None
         )
 
 
-    async def get(self,timezone:TimeZoneEnum,query:Optional[str]="",limit:Optional[int]=10,offset:int=1):
-        res=await SupplierService(session=self.session).get(query=query,limit=limit,offset=offset,timezone=timezone)
+    async def get(self,data:GetAllSupplierSchema):
+        res=await SupplierService(session=self.session).get(data=data)
         return SuccessResponseTypDict(
             detail=BaseResponseTypDict(
                 msg="Supplier fetched successfully",
                 status_code=200,
                 success=True
             ),
-            data=res
+            data=[SupplierGetResponseSchema(**r) for r in res] if res else None
         )
 
 
-    async def getby_id(self,timezone:TimeZoneEnum,supplier_id:str,shop_id:str):
-        res=await SupplierService(session=self.session).getby_id(timezone=timezone,supplier_id=supplier_id,shop_id=shop_id)
+    async def getby_id(self,data:GetSupplierById):
+        res=await SupplierService(session=self.session).getby_id(data=data)
         return SuccessResponseTypDict(
             detail=BaseResponseTypDict(
                 msg="Supplier fetched successfully",
                 status_code=200,
                 success=True
             ),
-            data=res
+            data=SupplierGetResponseSchema(**res) if res else None
+        )
+    
+    async def getby_shop_id(self,data:GetSupplierByShopIdSchema):
+        res=await SupplierService(session=self.session).get(data=data)
+        return SuccessResponseTypDict(
+            detail=BaseResponseTypDict(
+                msg="Supplier fetched successfully",
+                status_code=200,
+                success=True
+            ),
+            data=[SupplierGetResponseSchema(**r) for r in res] if res else None
         )
     
 
