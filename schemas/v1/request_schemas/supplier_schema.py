@@ -1,11 +1,12 @@
 from pydantic import BaseModel,EmailStr,Field
-from core.data_formats.typ_dicts.supplier_typdict import SupplierContactInfoTypDict
+from core.data_formats.typ_dicts.supplier_typdict import SupplierContactInfoTypDict,SupplierAddressTypDict
 from hyperlocal_platform.core.enums.timezone_enum import TimeZoneEnum
 from typing import Optional
 
 # Optional Supplier Schemas
 class OptionalSupplierFieldsSchema(BaseModel):
     internal_notes:Optional[str]=None
+    address:Optional[SupplierAddressTypDict]=None
 
 
 # Writable Schemas

@@ -110,7 +110,7 @@ class HandleSupplierRequest(BaseServiceModel):
         )
     
     async def getby_shop_id(self,data:GetSupplierByShopIdSchema):
-        res=await SupplierService(session=self.session).get(data=data)
+        res=await SupplierService(session=self.session).getby_shop_id(data=data)
         return SuccessResponseTypDict(
             detail=BaseResponseTypDict(
                 msg="Supplier fetched successfully",
