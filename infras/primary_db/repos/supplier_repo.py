@@ -80,6 +80,9 @@ class SupplierRepo(BaseRepoModel):
             )
             .where(
                 or_(
+                    Suppliers.name.ilike(search_term),
+                    Suppliers.mobile_number.ilike(search_term),
+                    Suppliers.email.ilike(search_term),
                     Suppliers.id.ilike(search_term),
                     Suppliers.shop_id.ilike(search_term),
                     func.cast(created_at,String).ilike(search_term)
@@ -104,6 +107,9 @@ class SupplierRepo(BaseRepoModel):
             .where(
                 Suppliers.shop_id==data.shop_id,
                 or_(
+                    Suppliers.name.ilike(search_term),
+                    Suppliers.mobile_number.ilike(search_term),
+                    Suppliers.email.ilike(search_term),
                     Suppliers.id.ilike(search_term),
                     Suppliers.shop_id.ilike(search_term),
                     func.cast(created_at,String).ilike(search_term)
