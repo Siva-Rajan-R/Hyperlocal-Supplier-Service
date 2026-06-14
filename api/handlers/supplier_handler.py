@@ -88,13 +88,22 @@ class HandleSupplierRequest(BaseServiceModel):
 
     async def get(self,data:GetAllSupplierSchema):
         res=await SupplierService(session=self.session).get(data=data)
+        
+        if data.offset in (0, 1):
+            data_to_send = {
+                "overall_datas": res.get("overall_datas", {}),
+                "datas": [SupplierGetResponseSchema(**r) for r in res.get("datas", [])]
+            }
+        else:
+            data_to_send = [SupplierGetResponseSchema(**r) for r in res.get("datas", [])]
+
         return SuccessResponseTypDict(
             detail=BaseResponseTypDict(
                 msg="Supplier fetched successfully",
                 status_code=200,
                 success=True
             ),
-            data=[SupplierGetResponseSchema(**r) for r in res] if res else None
+            data=data_to_send
         )
 
 
@@ -111,18 +120,27 @@ class HandleSupplierRequest(BaseServiceModel):
     
     async def getby_shop_id(self,data:GetSupplierByShopIdSchema):
         res=await SupplierService(session=self.session).getby_shop_id(data=data)
+        
+        if data.offset in (0, 1):
+            data_to_send = {
+                "overall_datas": res.get("overall_datas", {}),
+                "datas": [SupplierGetResponseSchema(**r) for r in res.get("datas", [])]
+            }
+        else:
+            data_to_send = [SupplierGetResponseSchema(**r) for r in res.get("datas", [])]
+
         return SuccessResponseTypDict(
             detail=BaseResponseTypDict(
                 msg="Supplier fetched successfully",
                 status_code=200,
                 success=True
             ),
-            data=[SupplierGetResponseSchema(**r) for r in res] if res else None
+            data=data_to_send
         )
     
 
-    async def search(self, query:str, limit:Optional[int]=5):
-        res=await SupplierService(session=self.session).search(query=query,limit=limit)
+    async def search(self, shop_id: str, query:str, limit:Optional[int]=5):
+        res=await SupplierService(session=self.session).search(shop_id=shop_id, query=query,limit=limit)
         return SuccessResponseTypDict(
             detail=BaseResponseTypDict(
                 msg="Supplier fetched successfully",

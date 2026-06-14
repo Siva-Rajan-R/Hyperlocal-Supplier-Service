@@ -4,6 +4,7 @@ from typing import Optional
 
 class CreateSupplierDbSchema(BaseModel):
     id:str
+    ui_id:str
     shop_id:str
     name:str
     email:Optional[EmailStr]=None

@@ -8,7 +8,7 @@ class Suppliers(BASE):
     __tablename__ = "suppliers"
     id = Column(String, primary_key=True)
     sequence_id=Column(BigInteger,Identity(always=True),nullable=False)
-    ui_id=Column(BigInteger,Identity(always=True),nullable=False)
+    ui_id=Column(String,nullable=False,index=True)
     shop_id=Column(String, nullable=False)
     name=Column(String,nullable=False)
     contact_info=Column(JSONB,nullable=True)

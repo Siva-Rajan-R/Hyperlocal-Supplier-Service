@@ -44,5 +44,6 @@ async def get(session:PG_ASYNC_SESSION,data:GetSupplierById=Depends()):
 async def get(session:PG_ASYNC_SESSION,data:GetAllSupplierSchema=Depends()):
     return await HandleSupplierRequest(session=session).get(data=data)
 
-
-
+@router.get('/search/{shop_id}')
+async def search(shop_id: str, session:PG_ASYNC_SESSION, q: str = Query(""), limit: int = Query(10, ge=1, le=50)):
+    return await HandleSupplierRequest(session=session).search(shop_id=shop_id, query=q, limit=limit)

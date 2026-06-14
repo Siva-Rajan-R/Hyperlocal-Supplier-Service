@@ -1,12 +1,12 @@
 from pydantic import BaseModel,EmailStr
 from core.data_formats.typ_dicts.supplier_typdict import SupplierContactInfoTypDict
-from typing import Optional
+from typing import Optional, Union
 from datetime import date,datetime
 
 
 class SupplierCreateResponseSchema(BaseModel):
     id:str
-    ui_id:int
+    ui_id:Union[str, int]
     name:str
     sequence_id:int
     email:Optional[EmailStr]=None
@@ -19,7 +19,7 @@ class SupplierCreateResponseSchema(BaseModel):
     
 class SupplierUpdateResponseSchema(BaseModel):
     id:str
-    ui_id:int
+    ui_id:Union[str, int]
     sequence_id:int
     name:str
     email:Optional[EmailStr]=None
@@ -33,7 +33,7 @@ class SupplierUpdateResponseSchema(BaseModel):
 
 class SupplierDeleteResponseSchema(BaseModel):
     id:str
-    ui_id:int
+    ui_id:Union[str, int]
     sequence_id:int
     name:str
     email:Optional[EmailStr]=None
@@ -47,7 +47,7 @@ class SupplierDeleteResponseSchema(BaseModel):
 
 class SupplierGetResponseSchema(BaseModel):
     id:str
-    ui_id:int
+    ui_id:Union[str, int]
     sequence_id:int
     name:str
     email:Optional[EmailStr]=None
