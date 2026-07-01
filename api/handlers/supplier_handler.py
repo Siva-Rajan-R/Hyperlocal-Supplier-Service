@@ -1,6 +1,6 @@
 from icecream import ic
-from schemas.v1.request_schemas.supplier_schema import CreateSupplierSchema,UpdateSupplierSchema,DeleteSupplierSchema,GetSupplierByShopIdSchema,GetAllSupplierSchema,GetSupplierById
-from schemas.v1.response_schemas.user_schemas.supplier_schema import SupplierContactInfoTypDict,SupplierCreateResponseSchema,SupplierDeleteResponseSchema,SupplierGetResponseSchema,SupplierUpdateResponseSchema
+from schemas.v1.supplier_schemas.request_schemas import CreateSupplierSchema,UpdateOutstandingSupplierSchema,UpdateSupplierSchema,DeleteSupplierSchema,GetAllSupplierSchema,GetSupplierById,GetSupplierByShopIdSchema
+from schemas.v1.supplier_schemas.db_schemas import CreateSupplierDbSchema,UpdateSupplierDbSchema,DeleteSupplierDbSchema
 from models.service_models.base_service_model import BaseServiceModel
 from hyperlocal_platform.core.models.req_res_models import SuccessResponseTypDict,ErrorResponseTypDict,BaseResponseTypDict
 from fastapi.exceptions import HTTPException
@@ -12,12 +12,34 @@ from core.utils.validate_fields import validate_fields
 from hyperlocal_platform.core.enums.timezone_enum import TimeZoneEnum
 from typing import Optional,List
 
-class HandleSupplierRequest(BaseServiceModel):
+class HandleSupplierRequest:
     def __init__(self, session:AsyncSession):
         self.session=session
 
 
     async def create(self,data:CreateSupplierSchema):
+        if not data.contact_infos or (not data.contact_infos.email and not data.contact_infos.mobile_number):
+            raise HTTPException(
+                status_code=400,
+                detail=ErrorResponseTypDict(
+                    status_code=400,
+                    msg="Error Creating Supplier",
+                    description="Please provide a atleast one of the contact info (Email or Mobile number)",
+                    success=False
+                )
+            )
+
+        if data.contact_person_infos and (not data.contact_person_infos.email and not data.contact_person_infos.mobile_number):
+            raise HTTPException(
+                status_code=400,
+                detail=ErrorResponseTypDict(
+                    status_code=400,
+                    msg="Error Creating Supplier",
+                    description="Please provide a atleast one of the contact info (Email or Mobile number) for contact person",
+                    success=False
+                )
+            )
+        
         res=await SupplierService(session=self.session).create(data=data)
         if not res:
             raise HTTPException(
@@ -36,11 +58,33 @@ class HandleSupplierRequest(BaseServiceModel):
                 status_code=201,
                 success=True
             ),
-            data=SupplierCreateResponseSchema(**res) if res else None
+            data=res if res else None
         )
 
 
     async def update(self,data:UpdateSupplierSchema):
+        if data.contact_infos and (not data.contact_infos.email and not data.contact_infos.mobile_number):
+            raise HTTPException(
+                status_code=400,
+                detail=ErrorResponseTypDict(
+                    status_code=400,
+                    msg="Error Creating Supplier",
+                    description="Please provide a atleast one of the contact info (Email or Mobile number)",
+                    success=False
+                )
+            )
+
+        if data.contact_person_infos and (not data.contact_person_infos.email and not data.contact_person_infos.mobile_number):
+            raise HTTPException(
+                status_code=400,
+                detail=ErrorResponseTypDict(
+                    status_code=400,
+                    msg="Error Creating Supplier",
+                    description="Please provide a atleast one of the contact info (Email or Mobile number) for contact person",
+                    success=False
+                )
+            )
+        
         res=await SupplierService(session=self.session).update(data=data)
         if not res:
             raise HTTPException(
@@ -59,7 +103,7 @@ class HandleSupplierRequest(BaseServiceModel):
                 status_code=200,
                 success=True
             ),
-            data=SupplierUpdateResponseSchema(**res) if res else None
+            data=res if res else None
         )
 
 
@@ -82,20 +126,12 @@ class HandleSupplierRequest(BaseServiceModel):
                 status_code=200,
                 success=True
             ),
-            data=SupplierDeleteResponseSchema(**res) if res else None
+            data=res if res else None
         )
 
 
     async def get(self,data:GetAllSupplierSchema):
         res=await SupplierService(session=self.session).get(data=data)
-        
-        if data.offset in (0, 1):
-            data_to_send = {
-                "overall_datas": res.get("overall_datas", {}),
-                "datas": [SupplierGetResponseSchema(**r) for r in res.get("datas", [])]
-            }
-        else:
-            data_to_send = [SupplierGetResponseSchema(**r) for r in res.get("datas", [])]
 
         return SuccessResponseTypDict(
             detail=BaseResponseTypDict(
@@ -103,7 +139,7 @@ class HandleSupplierRequest(BaseServiceModel):
                 status_code=200,
                 success=True
             ),
-            data=data_to_send
+            data=res
         )
 
 
@@ -115,19 +151,11 @@ class HandleSupplierRequest(BaseServiceModel):
                 status_code=200,
                 success=True
             ),
-            data=SupplierGetResponseSchema(**res) if res else None
+            data=res
         )
     
     async def getby_shop_id(self,data:GetSupplierByShopIdSchema):
         res=await SupplierService(session=self.session).getby_shop_id(data=data)
-        
-        if data.offset in (0, 1):
-            data_to_send = {
-                "overall_datas": res.get("overall_datas", {}),
-                "datas": [SupplierGetResponseSchema(**r) for r in res.get("datas", [])]
-            }
-        else:
-            data_to_send = [SupplierGetResponseSchema(**r) for r in res.get("datas", [])]
 
         return SuccessResponseTypDict(
             detail=BaseResponseTypDict(
@@ -135,15 +163,15 @@ class HandleSupplierRequest(BaseServiceModel):
                 status_code=200,
                 success=True
             ),
-            data=data_to_send
+            data=res
         )
     
 
-    async def search(self, shop_id: str, query:str, limit:Optional[int]=5):
-        res=await SupplierService(session=self.session).search(shop_id=shop_id, query=query,limit=limit)
+    async def update_outstanding(self,data:UpdateOutstandingSupplierSchema):
+        res=await SupplierService(session=self.session).update_outstanding(data=data)
         return SuccessResponseTypDict(
             detail=BaseResponseTypDict(
-                msg="Supplier fetched successfully",
+                msg="Supplier outstanding updated successfully",
                 status_code=200,
                 success=True
             ),

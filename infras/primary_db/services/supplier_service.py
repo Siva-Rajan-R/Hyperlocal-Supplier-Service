@@ -1,8 +1,10 @@
 from ..main import AsyncSession
 from ..repos.supplier_repo import SupplierRepo
-from schemas.v1.db_schemas.supplier_schema import CreateSupplierDbSchema,UpdateSupplierDbSchema
-from schemas.v1.request_schemas.supplier_schema import CreateSupplierSchema,UpdateSupplierSchema,DeleteSupplierSchema,GetAllSupplierSchema,GetSupplierById,GetSupplierByShopIdSchema,VerifySupplierSchema
+from schemas.v1.supplier_schemas.request_schemas import CreateSupplierSchema,UpdateOutstandingSupplierSchema,UpdateSupplierSchema,DeleteSupplierSchema,GetAllSupplierSchema,GetSupplierById,GetSupplierByShopIdSchema
+from schemas.v1.supplier_schemas.db_schemas import CreateSupplierDbSchema,UpdateSupplierDbSchema,DeleteSupplierDbSchema
+from schemas.v1.supplier_schemas.custom_types import SupplierOutstandingInfosType
 from models.service_models.base_service_model import BaseServiceModel
+from core.data_formats.enums.supplier_enums import SupplierOutstandingUpdateTypeEnums
 from hyperlocal_platform.core.models.req_res_models import SuccessResponseTypDict,ErrorResponseTypDict,BaseResponseTypDict
 from fastapi.exceptions import HTTPException
 from hyperlocal_platform.core.decorators.db_session_handler_dec import start_db_transaction
@@ -12,6 +14,8 @@ from core.decorators.error_handler_dec import catch_errors
 from typing import Optional,List
 from icecream import ic
 import httpx
+from ...read_db.repos.supplier_repo import SupplierStatsRepo
+from ...read_db.models.supplier_model import SupplierStatsSchema
 
 ACTIVITY_LOG_URL = "http://127.0.0.1:8001/activity-logs"
 
@@ -33,94 +37,113 @@ async def _send_activity_log(shop_id: str, action: str, entity_id: str, descript
 
 
 
-class SupplierService(BaseServiceModel):
+class SupplierService:
     def __init__(self, session:AsyncSession):
-        super().__init__(session)
+        self.session=session
         self.supplier_repo_obj=SupplierRepo(session=session)
+        self.supplier_stats_repo_obj=SupplierStatsRepo
+
 
     async def create(self,data:CreateSupplierSchema)-> dict | None:
         
         supplier_id:str=generate_uuid()
-        shop_id = data.shop_id
-        supplier_name = data.name
-        ic(data.datas)
-        from infras.read_db.repos.shopidconfig_repo import ShopIdConfigReadDbRepo
-        from core.utils.id_formatter import format_ui_id
-        
-        shop_config = await ShopIdConfigReadDbRepo.get_config(shop_id)
-        sup_config = shop_config.get("supplier", {})
-        prefix = sup_config.get("prefix", "SUP")
-        start_from = sup_config.get("start_from", 1)
-        
-        raw_sequence = await self.supplier_repo_obj.get_next_sequence(shop_id, start_from)
-        ui_id_str = format_ui_id(prefix, start_from, raw_sequence)
+        ui_id = generate_uuid()
 
-        data=CreateSupplierDbSchema(
+        final_data=CreateSupplierDbSchema(
             **data.model_dump(mode="json",exclude_none=True,exclude_unset=True),
             id=supplier_id,
-            ui_id=ui_id_str
+            ui_id=ui_id
         )
 
-        res=await self.supplier_repo_obj.create(data=data)
+        res=await self.supplier_repo_obj.create(data=final_data)
+        ic(res)
         if res:
-            res = dict(res)
-            await _send_activity_log(
-                shop_id=shop_id,
-                action="CREATE",
-                entity_id=supplier_id,
-                description=f"Created new supplier: {supplier_name}",
-                changes=[{"field": "name", "before": "", "after": str(supplier_name)}]
+            await self.supplier_stats_repo_obj.update_stats(
+                data=SupplierStatsSchema(
+                    total_outstanding=0,
+                    total_suppliers=1
+                )
             )
         return res
     
     async def update(self,data:UpdateSupplierSchema)-> dict | None:
         # Fetch old supplier to compare changes
-        old_supplier = await self.supplier_repo_obj.getby_id(GetSupplierById(id=data.id, shop_id=data.shop_id))
-        data_db=UpdateSupplierDbSchema(**data.model_dump(mode="json",exclude_unset=True,exclude_none=True))
-        res=await self.supplier_repo_obj.update(data=data_db)
-        if res and old_supplier:
-            res = dict(res)
-            changes_list = []
-            desc_changes = []
-            for k, v in data.model_dump(exclude_none=True, exclude_unset=True).items():
-                if k not in ["id", "shop_id"] and k in old_supplier and str(old_supplier[k]) != str(v):
-                    desc_changes.append(f"{k} prv({old_supplier[k]}) after ({v})")
-                    changes_list.append({"field": k, "before": str(old_supplier[k]), "after": str(v)})
-            if desc_changes:
-                await _send_activity_log(
-                    shop_id=data.shop_id,
-                    action="UPDATE",
-                    entity_id=data.id,
-                    description=f"Updated supplier: {', '.join(desc_changes)}",
-                    changes=changes_list
-                )
+        supplier_get_res = await self.supplier_repo_obj.getby_id(GetSupplierById(id=data.id, shop_id=data.shop_id))
+        if not supplier_get_res:
+            ic("The give supplier doesn't exists")
+            return False
+        final_data=UpdateSupplierDbSchema(**data.model_dump(mode="json",exclude_unset=True,exclude_none=True))
+        res=await self.supplier_repo_obj.update(data=final_data)
+        
         return res
 
     async def delete(self,data:DeleteSupplierSchema)-> dict | None:
-        old_supplier = await self.supplier_repo_obj.getby_id(GetSupplierById(id=data.id, shop_id=data.shop_id))
-        res=await self.supplier_repo_obj.delete(data=data)
+        supplier_get_res=await self.supplier_repo_obj.getby_id(data=GetSupplierById(shop_id=data.shop_id,id=data.id))
+        if supplier_get_res:
+            ic("The given supplier info doesnt exists")
+            return False
+        
+        final_data=DeleteSupplierDbSchema(**data.model_dump())
+        res=await self.supplier_repo_obj.delete(data=final_data)
         if res:
-            res = dict(res)
-            supplier_name = old_supplier.get('name', 'Unknown') if old_supplier else 'Unknown'
-            await _send_activity_log(
-                shop_id=data.shop_id,
-                action="DELETE",
-                entity_id=data.id,
-                description=f"Deleted supplier: {supplier_name}",
-                changes=[{"field": "name", "before": str(supplier_name), "after": "DELETED"}]
+            total_outstanding=supplier_get_res.get("outstanding_infos").get("amount",0) if supplier_get_res.get("outstanding_infos") else 0
+            await self.supplier_stats_repo_obj.update_stats(
+                data=SupplierStatsSchema(
+                    total_outstanding=-total_outstanding,
+                    total_suppliers=-1
+                )
             )
+
         return res
+    
+    async def update_outstanding(self,data:UpdateOutstandingSupplierSchema):
+        supplier_get_res=await self.supplier_repo_obj.getby_id(data=GetSupplierById(shop_id=data.shop_id,id=data.id))
+        if not supplier_get_res:
+            ic("The give supplier doesn't exists")
+            return False
+        
+        prev_outst_amt=supplier_get_res.get('outstanding_infos').get("amount",0) if supplier_get_res.get('outstanding_infos') else 0
+        cur_outst_amt=data.outstanding_infos.amount
+
+        if data.type==SupplierOutstandingUpdateTypeEnums.INCREMENT:
+            cur_outst_amt=cur_outst_amt+prev_outst_amt
+        
+        elif data.type==SupplierOutstandingUpdateTypeEnums.DECREMENT:
+            cur_outst_amt=abs(cur_outst_amt-prev_outst_amt)
+        
+        outstanding_infos=SupplierOutstandingInfosType(amount=cur_outst_amt)
+
+        final_data=UpdateOutstandingSupplierSchema(
+            outstanding_infos=outstanding_infos,
+            **data.model_dump(exclude=["outstanding_infos"])
+        )
+
+        res=await self.supplier_repo_obj.update_outstanding(data=final_data)
+
+        ic(res)
+
+        if res:
+            total_outst=data.outstanding_infos.amount
+            ic(total_outst)
+            if data.type==SupplierOutstandingUpdateTypeEnums.DECREMENT:
+                total_outst=-total_outst
+            
+            ic(total_outst,"/////////////////////////////")
+            await self.supplier_stats_repo_obj.update_stats(
+                data=SupplierStatsSchema(
+                    total_outstanding=total_outst,
+                    total_suppliers=0
+                )
+            )
+
+        return res
+    
+
 
 
     async def get(self,data:GetAllSupplierSchema)-> dict:
         res=await self.supplier_repo_obj.get(data=data)
-        if data.offset in (0, 1):
-            overall_values = await self.supplier_repo_obj.get_overall_values(data=data)
-            return {
-                "overall_datas": overall_values,
-                "datas": res
-            }
-        return {"datas": res}
+        return res
 
 
     async def getby_id(self,data:GetSupplierById)-> dict | None:
@@ -131,20 +154,4 @@ class SupplierService(BaseServiceModel):
     
     async def getby_shop_id(self,data:GetSupplierByShopIdSchema)-> dict:
         res=await self.supplier_repo_obj.getby_shop_id(data=data)
-        if data.offset in (0, 1):
-            overall_values = await self.supplier_repo_obj.get_overall_values(data=data)
-            return {
-                "overall_datas": overall_values,
-                "datas": res
-            }
-        return {"datas": res}
-    
-    async def verify(self,data:VerifySupplierSchema)-> dict:
-        res=await self.supplier_repo_obj.verify(data=data)
-        return res
-
-    
-
-    async def search(self, shop_id: str, query:str, limit:Optional[int]=5):
-        res=await self.supplier_repo_obj.search(shop_id=shop_id, query=query,limit=limit)
         return res

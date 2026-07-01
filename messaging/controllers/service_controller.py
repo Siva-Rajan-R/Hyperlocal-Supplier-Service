@@ -114,29 +114,12 @@ async def service_main_controller(msg:AbstractIncomingMessage):
                 response = method(data=body)
                 
             ic(response)
-            if response is not None:
-                ic(f"Successfully processed the message for entity '{entity_name}' with response: {response}")
-                await saga_repo.merge(
-                    data=response,
-                    saga_id=saga_id,
-                    service=SERVICE_NAME.lower()
-                )
-
-            else:
-                ic(f"Failed to process the message for entity '{entity_name}'")
-                await saga_repo.update_status(
-                    status=SagaStatusEnum.CANCELED,
-                    saga_id=saga_id
-                )
-                await saga_repo.update_error(
-                    saga_id=saga_id,
-                    error=SagaStateErrorTypDict(
-                        code="BUSSINESS_ERROR",
-                        debug=f"Processing the message for entity '{entity_name}' failed without exceptions, {response}",
-                        user_msg="Failed to process the message due to bussiness error, please check the data and try again"
-                    )
-                )
-                
+            ic(f"Successfully processed the message for entity '{entity_name}' with response: {response}")
+            await saga_repo.merge(
+                data=response,
+                saga_id=saga_id,
+                service=SERVICE_NAME.lower()
+            )
 
             await session.commit()
 

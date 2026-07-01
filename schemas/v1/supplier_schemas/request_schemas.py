@@ -1,39 +1,44 @@
 from pydantic import BaseModel,EmailStr,Field
 from core.data_formats.typ_dicts.supplier_typdict import SupplierContactInfoTypDict,SupplierAddressTypDict
+from core.data_formats.enums.supplier_enums import SupplierOutstandingUpdateTypeEnums
+from .custom_types import SupplierOutstandingInfosType,SupplierContactInfosType,SupplierContactPersonInfosType,SupplierLocationInfosType
 from hyperlocal_platform.core.enums.timezone_enum import TimeZoneEnum
 from typing import Optional
 
-# Optional Supplier Schemas
-class OptionalSupplierFieldsSchema(BaseModel):
-    internal_notes:Optional[str]=None
-    address:Optional[SupplierAddressTypDict]=None
 
 
 # Writable Schemas
 class CreateSupplierSchema(BaseModel):
     shop_id:str
     name:str
-    email:Optional[EmailStr]=None
-    mobile_number:str
-    gst_no:str
-    contact_info:Optional[SupplierContactInfoTypDict]=None
-    datas:Optional[OptionalSupplierFieldsSchema]={}
+    contact_infos:SupplierContactInfosType
+    location_infos:SupplierLocationInfosType
+    contact_person_infos:Optional[SupplierContactPersonInfosType]=None
+    gst_no:Optional[str]=None
+    additional_infos:Optional[dict]={}
 
 
 class UpdateSupplierSchema(BaseModel):
     id:str
     shop_id:str
     name:Optional[str]=None
-    email:Optional[EmailStr]=None
-    mobile_number:Optional[str]=None
+    contact_infos:Optional[SupplierContactInfosType]=None
+    location_infos:Optional[SupplierLocationInfosType]=None
+    contact_person_infos:Optional[SupplierContactPersonInfosType]=None
     gst_no:Optional[str]=None
-    contact_info:Optional[SupplierContactInfoTypDict]=None
-    datas:Optional[OptionalSupplierFieldsSchema]={}
+    additional_infos:Optional[dict]={}
 
 
 class DeleteSupplierSchema(BaseModel):
     id:str
     shop_id:str
+
+class UpdateOutstandingSupplierSchema(BaseModel):
+    id:str
+    shop_id:str
+    outstanding_infos:SupplierOutstandingInfosType
+    type:SupplierOutstandingUpdateTypeEnums
+
 
 
 
@@ -43,7 +48,6 @@ class GetAllSupplierSchema(BaseModel):
     query:str=Field(default="",alias='q')
     limit:int=Field(default=10,le=100)
     offset:int=Field(default=1)
-    timezone:Optional[TimeZoneEnum]=TimeZoneEnum.Asia_Kolkata
     from_date:Optional[str]=None
     to_date:Optional[str]=None
 
@@ -52,14 +56,12 @@ class GetSupplierByShopIdSchema(BaseModel):
     query:str=Field(default="",alias='q')
     limit:int=Field(default=10,le=100)
     offset:int=Field(default=1)
-    timezone:Optional[TimeZoneEnum]=TimeZoneEnum.Asia_Kolkata
     from_date:Optional[str]=None
     to_date:Optional[str]=None
 
 class GetSupplierById(BaseModel):
     shop_id:str
     id:str
-    timezone:Optional[TimeZoneEnum]=TimeZoneEnum.Asia_Kolkata
 
 class VerifySupplierSchema(BaseModel):
     shop_id:str

@@ -8,6 +8,7 @@ import os,asyncio
 from core.configs.settings_config import SETTINGS
 from messaging.worker import worker
 from hyperlocal_platform.core.enums.environment_enum import EnvironmentEnum
+from infras.read_db.main import init_read_db
 load_dotenv()
 
 
@@ -16,6 +17,7 @@ async def supplier_service_lifespan(app:FastAPI):
     try:
         ic("Starting supplier service...")
         await init_pg_db()
+        await init_read_db()
         asyncio.create_task(worker())
         yield
 

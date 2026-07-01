@@ -11,11 +11,13 @@ class Suppliers(BASE):
     ui_id=Column(String,nullable=False,index=True)
     shop_id=Column(String, nullable=False)
     name=Column(String,nullable=False)
-    contact_info=Column(JSONB,nullable=True)
-    mobile_number=Column(String,nullable=False)
-    email=Column(String,nullable=True)
+    contact_person_infos=Column(JSONB)
+    contact_infos=Column(JSONB,nullable=True)
+    location_infos=Column(JSONB)
+    outstanding_infos=Column(JSONB)
     gst_no=Column(String,nullable=True)
-    datas=Column(JSONB,nullable=True)
+    additional_infos=Column(JSONB,nullable=True)
+
 
     created_at=Column(TIMESTAMP(timezone=True),nullable=False,server_default=func.now())
     updated_at=Column(TIMESTAMP(timezone=True),nullable=False,server_default=func.now(),onupdate=func.now())
