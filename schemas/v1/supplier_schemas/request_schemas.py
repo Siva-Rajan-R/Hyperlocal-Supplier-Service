@@ -16,7 +16,7 @@ class CreateSupplierSchema(BaseModel):
     contact_person_infos:Optional[SupplierContactPersonInfosType]=None
     gst_no:Optional[str]=None
     additional_infos:Optional[dict]={}
-
+    custom_fields:Optional[dict]={}
 
 class UpdateSupplierSchema(BaseModel):
     id:str
@@ -27,6 +27,7 @@ class UpdateSupplierSchema(BaseModel):
     contact_person_infos:Optional[SupplierContactPersonInfosType]=None
     gst_no:Optional[str]=None
     additional_infos:Optional[dict]={}
+    custom_fields:Optional[dict]={}
 
 
 class DeleteSupplierSchema(BaseModel):

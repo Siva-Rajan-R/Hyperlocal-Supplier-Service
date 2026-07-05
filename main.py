@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from api.routers.v1 import supplier_routes
+from api.routers.v1 import supplier_routes,customfield_router
 from infras.primary_db.main import init_pg_db
 from contextlib import asynccontextmanager
 from icecream import ic
@@ -52,5 +52,6 @@ app=FastAPI(
 
 # Routes to include
 app.include_router(supplier_routes.router)
+app.include_router(customfield_router.router)
 
 
