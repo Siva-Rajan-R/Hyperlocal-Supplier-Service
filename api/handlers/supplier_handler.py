@@ -11,7 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.utils.validate_fields import validate_fields
 from hyperlocal_platform.core.enums.timezone_enum import TimeZoneEnum
 from typing import Optional,List
-from infras.primary_db.repos.customfield_repo import CustomFieldsRepo
+from infras.primary_db.repos.customfield_repo import CustomFieldsRepo,GetFieldByShopIdSchema
+from infras.primary_db.services.customfield_service import CustomFieldsService
 from schemas.v1.db_schemas.customfield_schema import CreateCustomFieldValueDbSchema
 from core.utils.validate_custom_fields import validate_and_filter_custom_fields
 from hyperlocal_platform.core.utils.uuid_generator import generate_uuid
@@ -44,10 +45,12 @@ class HandleSupplierRequest:
                 )
             )
         
-        defined_fields = await CustomFieldsRepo(session=self.session).get_all_fields(shop_id=data.shop_id)
-        valid_custom_fields = validate_and_filter_custom_fields(data.custom_fields, defined_fields)
+        # for checking the custome fields
+        defined_fields = await CustomFieldsService(session=self.session).get_field_by_shop_id(data=GetFieldByShopIdSchema(shop_id=data.shop_id))
+        valid_custom_fields = validate_and_filter_custom_fields(payload_custom_fields=data.custom_fields, defined_custom_fields=defined_fields)
+        ic(valid_custom_fields)
 
-        final_data = CreateSupplierSchema(**data.model_dump(exclude=['custom_fields']))
+        final_data = CreateSupplierSchema(custom_fields=valid_custom_fields,**data.model_dump(exclude=['custom_fields']))
         res=await SupplierService(session=self.session).create(data=final_data)
         if not res:
             raise HTTPException(
@@ -60,21 +63,6 @@ class HandleSupplierRequest:
                 )
             )
             
-        defined_fields_map = {field['field_name']: field['id'] for field in defined_fields}
-        for field_name, value in valid_custom_fields.items():
-            field_id = defined_fields_map.get(field_name)
-            if field_id:
-                # Assuming SupplierCustomFieldsValues uses `supplier_id` not `customer_id`
-                # Need to check `CreateCustomFieldValueDbSchema` for Supplier
-                await CustomFieldsRepo(session=self.session).upsert_field_value(
-                    data=CreateCustomFieldValueDbSchema(
-                        id=generate_uuid(),
-                        shop_id=data.shop_id,
-                        supplier_id=res['id'],
-                        field_id=field_id,
-                        value=str(value)
-                    )
-                )
         
         return SuccessResponseTypDict(
             detail=BaseResponseTypDict(

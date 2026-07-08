@@ -16,6 +16,8 @@ from icecream import ic
 import httpx
 from ...read_db.repos.supplier_repo import SupplierStatsRepo
 from ...read_db.models.supplier_model import SupplierStatsSchema
+from integrations.utility_service import get_ui_id, get_shop_category, get_shop_unit
+from .customfield_service import CustomFieldsService,CreateCustomFieldDbSchema,CreateCustomFieldSchema,CreateCustomFieldValueSchema
 
 ACTIVITY_LOG_URL = "http://127.0.0.1:8001/activity-logs"
 
@@ -47,7 +49,12 @@ class SupplierService:
     async def create(self,data:CreateSupplierSchema)-> dict | None:
         
         supplier_id:str=generate_uuid()
-        ui_id = generate_uuid()
+        ui_id = None
+        ui_id_res = await get_ui_id(shop_id=data.shop_id)
+        if isinstance(ui_id_res, dict) and "prefix" in ui_id_res:
+            ui_id = f"{ui_id_res.get('prefix')}-{ui_id_res.get('current_number')}"
+        else:
+            return False
 
         final_data=CreateSupplierDbSchema(
             **data.model_dump(mode="json",exclude_none=True,exclude_unset=True),
@@ -55,8 +62,22 @@ class SupplierService:
             ui_id=ui_id
         )
 
+
+
         res=await self.supplier_repo_obj.create(data=final_data)
         ic(res)
+
+        cust_obj=await CustomFieldsService(session=self.session).upsert_values(
+        data=CreateCustomFieldValueSchema(
+                shop_id=data.shop_id,
+                supplier_id=supplier_id,
+                value_infos=[
+                    {'field_id':id,"value":value}
+                    for id,value in data.custom_fields.items()
+                ]
+            )
+        )
+        ic(cust_obj)
         if res:
             await self.supplier_stats_repo_obj.update_stats(
                 data=SupplierStatsSchema(
@@ -64,6 +85,38 @@ class SupplierService:
                     total_suppliers=1
                 )
             )
+            try:
+                from messaging.main import RabbitMQMessagingConfig
+                rabbitmq_msg_obj = RabbitMQMessagingConfig()
+                
+                analytics_payload = {
+                    "shop_id": data.shop_id,
+                    "datas": [
+                        {
+                            "supplier_id": supplier_id,
+                            "outstanding_amounts": 0,
+                            "cleared_amounts": 0
+                        }
+                    ]
+                }
+                
+                await rabbitmq_msg_obj.publish_event(
+                    routing_key="analytics.service.routing.key",
+                    exchange_name="analytics.service.exchange",
+                    payload=analytics_payload,
+                    headers={
+                        "entity_name": "supplier_event",
+                        "service_name": "ANALYTICS",
+                        "saga_id": "none",
+                        "reply_key": "none",
+                        "reply_exchange": "none",
+                        "reply_entity_name": "none",
+                        "body": analytics_payload
+                    }
+                )
+            except Exception as e:
+                ic(f"Failed to publish analytics event: {e}")
+
         return res
     
     async def update(self,data:UpdateSupplierSchema)-> dict | None:
