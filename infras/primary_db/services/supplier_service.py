@@ -67,17 +67,18 @@ class SupplierService:
         res=await self.supplier_repo_obj.create(data=final_data)
         ic(res)
 
-        cust_obj=await CustomFieldsService(session=self.session).upsert_values(
-        data=CreateCustomFieldValueSchema(
-                shop_id=data.shop_id,
-                supplier_id=supplier_id,
-                value_infos=[
-                    {'field_id':id,"value":value}
-                    for id,value in data.custom_fields.items()
-                ]
+        if data.custom_fields:
+            cust_obj=await CustomFieldsService(session=self.session).upsert_values(
+            data=CreateCustomFieldValueSchema(
+                    shop_id=data.shop_id,
+                    supplier_id=supplier_id,
+                    value_infos=[
+                        {'field_id':id,"value":value}
+                        for id,value in data.custom_fields.items()
+                    ]
+                )
             )
-        )
-        ic(cust_obj)
+            ic(cust_obj)
         if res:
             await self.supplier_stats_repo_obj.update_stats(
                 data=SupplierStatsSchema(
@@ -117,6 +118,28 @@ class SupplierService:
             except Exception as e:
                 ic(f"Failed to publish analytics event: {e}")
 
+            
+            try:
+                from messaging.main import RabbitMQMessagingConfig
+                rabbitmq_msg_obj = RabbitMQMessagingConfig()
+                await rabbitmq_msg_obj.publish_event(
+                    routing_key="activity_logs.routing.key",
+                    exchange_name="activity_logs.exchange",
+                    payload={
+                        "shop_id": data.shop_id,
+                        "user_name": "Hyperlocal-User",
+                        "service": "Supplier",
+                        "action": "CREATED",
+                        "entity_type": "Supplier",
+                        "entity_id": supplier_id,
+                        "description": f"Created supplier {supplier_id}",
+                        "changes": [{"field": "id", "before": str(supplier_id), "after": "CREATED"}]
+                    },
+                    headers={}
+                )
+            except Exception as e:
+                ic(f"Failed to publish activity log: {e}")
+
         return res
     
     async def update(self,data:UpdateSupplierSchema)-> dict | None:
@@ -126,13 +149,47 @@ class SupplierService:
             ic("The give supplier doesn't exists")
             return False
         final_data=UpdateSupplierDbSchema(**data.model_dump(mode="json",exclude_unset=True,exclude_none=True))
-        res=await self.supplier_repo_obj.update(data=final_data)
-        
+        res=await self.supplier_repo_obj.update(data=final_data) 
+        if res:
+            if data.custom_fields:
+                cust_obj=await CustomFieldsService(session=self.session).upsert_values(
+                data=CreateCustomFieldValueSchema(
+                        shop_id=data.shop_id,
+                        supplier_id=data.id,
+                        value_infos=[
+                            {'field_id':id,"value":value}
+                            for id,value in data.custom_fields.items()
+                        ]
+                    )
+                )
+                ic(cust_obj)
+
+            try:
+                from messaging.main import RabbitMQMessagingConfig
+                rabbitmq_msg_obj = RabbitMQMessagingConfig()
+                await rabbitmq_msg_obj.publish_event(
+                    routing_key="activity_logs.routing.key",
+                    exchange_name="activity_logs.exchange",
+                    payload={
+                        "shop_id": data.shop_id,
+                        "user_name": "Hyperlocal-User",
+                        "service": "SUPPLIER",
+                        "action": "UPDATED",
+                        "entity_type": "Supplier",
+                        "entity_id": data.id,
+                        "description": f"Created supplier {data.id}",
+                        "changes": [{"field": "id", "before": str(data.id), "after": "UPDATE"}]
+                    },
+                    headers={}
+                )
+            except Exception as e:
+                ic(f"Failed to publish activity log: {e}")
+
         return res
 
     async def delete(self,data:DeleteSupplierSchema)-> dict | None:
         supplier_get_res=await self.supplier_repo_obj.getby_id(data=GetSupplierById(shop_id=data.shop_id,id=data.id))
-        if supplier_get_res:
+        if not supplier_get_res:
             ic("The given supplier info doesnt exists")
             return False
         
@@ -146,6 +203,54 @@ class SupplierService:
                     total_suppliers=-1
                 )
             )
+
+
+            try:
+                from messaging.main import RabbitMQMessagingConfig
+                rabbitmq_msg_obj = RabbitMQMessagingConfig()
+                await rabbitmq_msg_obj.publish_event(
+                    routing_key="activity_logs.routing.key",
+                    exchange_name="activity_logs.exchange",
+                    payload={
+                        "shop_id": data.shop_id,
+                        "user_name": "Hyperlocal-User",
+                        "service": "SUPPLIER",
+                        "action": "DELETED",
+                        "entity_type": "Supplier",
+                        "entity_id": data.id,
+                        "description": f"Created Supplier {data.id}",
+                        "changes": [{"field": "id", "before": str(data.id), "after": "DELETED"}]
+                    },
+                    headers={}
+                )
+
+                analytics_payload = {
+                    "shop_id": data.shop_id,
+                    "action": "delete",
+                    "datas": [
+                        {
+                            "supplier_id": data.id,
+                            "outstanding_amounts": -float(total_outstanding),
+                            "cleared_amounts": 0.0
+                        }
+                    ]
+                }
+                await rabbitmq_msg_obj.publish_event(
+                    routing_key="analytics.service.routing.key",
+                    exchange_name="analytics.service.exchange",
+                    payload=analytics_payload,
+                    headers={
+                        "entity_name": "supplier_event",
+                        "service_name": "ANALYTICS",
+                        "saga_id": "none",
+                        "reply_key": "none",
+                        "reply_exchange": "none",
+                        "reply_entity_name": "none",
+                        "body": analytics_payload
+                    }
+                )
+            except Exception as e:
+                ic(f"Failed to publish events: {e}")
 
         return res
     
@@ -181,7 +286,7 @@ class SupplierService:
             if data.type==SupplierOutstandingUpdateTypeEnums.DECREMENT:
                 total_outst=-total_outst
             
-            ic(total_outst,"/////////////////////////////")
+
             await self.supplier_stats_repo_obj.update_stats(
                 data=SupplierStatsSchema(
                     total_outstanding=total_outst,

@@ -12,7 +12,7 @@ from core.utils.validate_fields import validate_fields
 from hyperlocal_platform.core.enums.timezone_enum import TimeZoneEnum
 from typing import Optional,List
 from infras.primary_db.repos.customfield_repo import CustomFieldsRepo,GetFieldByShopIdSchema
-from infras.primary_db.services.customfield_service import CustomFieldsService
+from infras.primary_db.services.customfield_service import CustomFieldsService,GetFieldByShopIdSchema
 from schemas.v1.db_schemas.customfield_schema import CreateCustomFieldValueDbSchema
 from core.utils.validate_custom_fields import validate_and_filter_custom_fields
 from hyperlocal_platform.core.utils.uuid_generator import generate_uuid
@@ -97,10 +97,10 @@ class HandleSupplierRequest:
                 )
             )
         
-        defined_fields = await CustomFieldsRepo(session=self.session).get_all_fields(shop_id=data.shop_id)
+        defined_fields = await CustomFieldsService(session=self.session).get_field_by_shop_id(data=GetFieldByShopIdSchema(shop_id=data.shop_id))
         valid_custom_fields = validate_and_filter_custom_fields(data.custom_fields, defined_fields)
 
-        final_data = UpdateSupplierSchema(**data.model_dump(exclude=['custom_fields']))
+        final_data = UpdateSupplierSchema(custom_fields=valid_custom_fields,**data.model_dump(exclude=['custom_fields']))
         res=await SupplierService(session=self.session).update(data=final_data)
         if not res:
             raise HTTPException(
