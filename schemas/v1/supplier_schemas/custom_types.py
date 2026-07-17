@@ -5,10 +5,10 @@ from typing import Optional
 
 
 class SupplierLocationInfosType(BaseModel):
-    zipcode:str
-    country:str
-    state:str
-    full_address:str
+    zipcode:Optional[str]=None
+    country:Optional[str]=None
+    state:Optional[str]=None
+    full_address:Optional[str]=None
 
 class SupplierContactInfosType(BaseModel):
     email:Optional[EmailStr]=None

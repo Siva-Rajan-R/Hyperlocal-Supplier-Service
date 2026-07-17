@@ -47,7 +47,36 @@ class SupplierService:
 
 
     async def create(self,data:CreateSupplierSchema)-> dict | None:
+        # Check if supplier already exists with the same mobile_number or email in this shop
+        from sqlalchemy import select, or_
+        from infras.primary_db.models.supplier_model import Suppliers
         
+        email = data.contact_infos.email if data.contact_infos else None
+        mobile_number = data.contact_infos.mobile_number if data.contact_infos else None
+        
+        conditions = []
+        if email:
+            conditions.append(Suppliers.contact_infos['email'].astext == email)
+        if mobile_number:
+            conditions.append(Suppliers.contact_infos['mobile_number'].astext == mobile_number)
+            
+        if conditions:
+            stmt = select(Suppliers).where(
+                Suppliers.shop_id == data.shop_id,
+                or_(*conditions)
+            )
+            existing_sup = (await self.session.execute(stmt)).scalars().first()
+            if existing_sup:
+                raise HTTPException(
+                    status_code=400,
+                    detail=ErrorResponseTypDict(
+                        msg="Error : Creating Supplier",
+                        description="Supplier with this email or mobile number already exists in this shop",
+                        success=False,
+                        status_code=400
+                    )
+                )
+
         supplier_id:str=generate_uuid()
         ui_id = None
         ui_id_res = await get_ui_id(shop_id=data.shop_id)
@@ -148,7 +177,40 @@ class SupplierService:
         if not supplier_get_res:
             ic("The give supplier doesn't exists")
             return False
-        final_data=UpdateSupplierDbSchema(**data.model_dump(mode="json",exclude_unset=True,exclude_none=True))
+
+        # Parse existing database objects
+        existing_location = supplier_get_res.get("location_infos") or {}
+        existing_contact = supplier_get_res.get("contact_infos") or {}
+        existing_contact_person = supplier_get_res.get("contact_person_infos") or {}
+
+        # Merge new attributes into database objects
+        merged_location = None
+        if data.location_infos is not None:
+            new_loc_dict = data.location_infos.model_dump(exclude_unset=True, exclude_none=True) if hasattr(data.location_infos, 'model_dump') else data.location_infos
+            merged_location = {**existing_location, **new_loc_dict}
+
+        merged_contact = None
+        if data.contact_infos is not None:
+            new_contact_dict = data.contact_infos.model_dump(exclude_unset=True, exclude_none=True) if hasattr(data.contact_infos, 'model_dump') else data.contact_infos
+            merged_contact = {**existing_contact, **new_contact_dict}
+
+        merged_contact_person = None
+        if data.contact_person_infos is not None:
+            new_contact_p_dict = data.contact_person_infos.model_dump(exclude_unset=True, exclude_none=True) if hasattr(data.contact_person_infos, 'model_dump') else data.contact_person_infos
+            merged_contact_person = {**existing_contact_person, **new_contact_p_dict}
+
+        # Build final update schema
+        final_data = UpdateSupplierDbSchema(
+            id=data.id,
+            shop_id=data.shop_id,
+            name=data.name if data.name is not None else supplier_get_res.get("name"),
+            gst_no=data.gst_no if data.gst_no is not None else supplier_get_res.get("gst_no"),
+            additional_infos=data.additional_infos if data.additional_infos is not None else supplier_get_res.get("additional_infos"),
+            location_infos=merged_location if merged_location is not None else existing_location,
+            contact_infos=merged_contact if merged_contact is not None else existing_contact,
+            contact_person_infos=merged_contact_person if merged_contact_person is not None else existing_contact_person
+        )
+
         res=await self.supplier_repo_obj.update(data=final_data) 
         if res:
             if data.custom_fields:

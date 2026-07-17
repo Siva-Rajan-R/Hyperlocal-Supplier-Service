@@ -198,6 +198,16 @@ class HandleSupplierRequest:
     
 
     async def update_outstanding(self,data:UpdateOutstandingSupplierSchema):
+        if data.type=="DECREMENT":
+            raise HTTPException(
+                status_code=400,
+                detail=ErrorResponseTypDict(
+                    msg="Error : Creating Supplier Outstanding",
+                    description=f"Invalid Type {data.type.value}, Use DIRECT or INCREMENT",
+                    status_code=400,
+                    success=False
+                )
+            )
         res=await SupplierService(session=self.session).update_outstanding(data=data)
         return SuccessResponseTypDict(
             detail=BaseResponseTypDict(
