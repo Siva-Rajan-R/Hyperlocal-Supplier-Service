@@ -1,0 +1,16 @@
+services:
+  supplier-service:
+    build: 
+      context: .
+      dockerfile: .
+    
+    env_file:
+      - .env
+    
+    networks:
+      - backend-networks
+    
+    ports:
+      - "8002:8000"
+    
+    restart: unless-stopped
