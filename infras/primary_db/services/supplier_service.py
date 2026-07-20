@@ -331,11 +331,14 @@ class SupplierService:
         elif data.type==SupplierOutstandingUpdateTypeEnums.DECREMENT:
             cur_outst_amt=abs(cur_outst_amt-prev_outst_amt)
         
+        original_cleared_amt = data.outstanding_infos.amount
         outstanding_infos=SupplierOutstandingInfosType(amount=cur_outst_amt)
 
         final_data=UpdateOutstandingSupplierSchema(
             outstanding_infos=outstanding_infos,
-            **data.model_dump(exclude=["outstanding_infos"])
+            outstanding_amount=prev_outst_amt,
+            cleared_amount=original_cleared_amt,
+            **data.model_dump(exclude=["outstanding_infos", "outstanding_amount", "cleared_amount"])
         )
 
         res=await self.supplier_repo_obj.update_outstanding(data=final_data)
@@ -375,3 +378,6 @@ class SupplierService:
     async def getby_shop_id(self,data:GetSupplierByShopIdSchema)-> dict:
         res=await self.supplier_repo_obj.getby_shop_id(data=data)
         return res
+
+    async def get_outstanding_history(self, supplier_id: str, shop_id: str):
+        return await self.supplier_repo_obj.get_outstanding_history(supplier_id=supplier_id, shop_id=shop_id)

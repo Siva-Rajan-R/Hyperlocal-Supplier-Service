@@ -47,3 +47,7 @@ async def get(session:PG_ASYNC_SESSION,data:GetSupplierById=Depends()):
 async def get(session:PG_ASYNC_SESSION,data:GetAllSupplierSchema=Depends()):
     return await HandleSupplierRequest(session=session).get(data=data)
 
+@router.get('/cleared-history/{shop_id}/{supplier_id}')
+async def get_outstanding_history(shop_id: str, supplier_id: str, session: PG_ASYNC_SESSION):
+    return await HandleSupplierRequest(session=session).get_outstanding_history(supplier_id=supplier_id, shop_id=shop_id)
+

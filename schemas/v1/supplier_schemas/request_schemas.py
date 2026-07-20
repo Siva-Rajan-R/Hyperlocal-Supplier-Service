@@ -39,6 +39,12 @@ class UpdateOutstandingSupplierSchema(BaseModel):
     shop_id:str
     outstanding_infos:SupplierOutstandingInfosType
     type:SupplierOutstandingUpdateTypeEnums
+    entity_name: Optional[str] = None
+    entity_id: Optional[str] = None
+    payment_method: Optional[str] = None
+    notes: Optional[str] = None
+    outstanding_amount: Optional[float] = None
+    cleared_amount: Optional[float] = None
 
 
 
@@ -68,4 +74,8 @@ class VerifySupplierSchema(BaseModel):
     shop_id:str
     email:Optional[str]=None
     mobile_number:Optional[str]=None
+
+class GetSupplierOutstandingHistorySchema(BaseModel):
+    supplier_id: str
+    shop_id: str
 

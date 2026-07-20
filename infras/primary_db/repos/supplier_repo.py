@@ -10,6 +10,7 @@ from typing import Optional,List
 from hyperlocal_platform.core.decorators.db_session_handler_dec import start_db_transaction
 from hyperlocal_platform.core.enums.timezone_enum import TimeZoneEnum
 from core.decorators.error_handler_dec import catch_errors
+from icecream import ic
 
 
 
@@ -81,6 +82,27 @@ class SupplierRepo:
 
     @start_db_transaction
     async def update_outstanding(self,data:UpdateOutstandingSupplierSchema):
+        if getattr(data, "entity_name", None) and getattr(data, "entity_id", None):
+            try:
+                from ..models.supplier_model import SupplierOutstandingHistory
+                import uuid
+                history_record = SupplierOutstandingHistory(
+                    id=str(uuid.uuid4()),
+                    supplier_id=data.id,
+                    shop_id=data.shop_id,
+                    cleared_amount=data.cleared_amount or 0.0,
+                    outstanding_amount=data.outstanding_amount or 0.0,
+                    payment_method=getattr(data, "payment_method", "N/A") or "N/A",
+                    entity_name=data.entity_name,
+                    entity_id=data.entity_id,
+                    notes=getattr(data, "notes", None) or f"Cleared outstanding for {data.entity_name}"
+                )
+                self.session.add(history_record)
+                await self.session.flush()
+                ic("Successfully added supplier outstanding history record in repo transaction")
+            except Exception as ex:
+                ic("Error saving supplier outstanding history in repo transaction:", ex)
+
         stmt=(
             update(
                 Suppliers
@@ -145,4 +167,27 @@ class SupplierRepo:
         res=(await self.session.execute(stmt)).mappings().one_or_none()
 
         return res
+
+    async def get_outstanding_history(self, supplier_id: str, shop_id: str):
+        from ..models.supplier_model import SupplierOutstandingHistory
+        stmt = select(SupplierOutstandingHistory).where(
+            SupplierOutstandingHistory.supplier_id == supplier_id,
+            SupplierOutstandingHistory.shop_id == shop_id
+        ).order_by(SupplierOutstandingHistory.created_at.desc())
+        records = (await self.session.execute(stmt)).scalars().all()
+        return [
+            {
+                "id": r.id,
+                "supplier_id": r.supplier_id,
+                "shop_id": r.shop_id,
+                "cleared_amount": r.cleared_amount,
+                "outstanding_amount": r.outstanding_amount,
+                "payment_method": r.payment_method,
+                "entity_name": r.entity_name,
+                "entity_id": r.entity_id,
+                "notes": r.notes,
+                "created_at": r.created_at
+            }
+            for r in records
+        ]
     

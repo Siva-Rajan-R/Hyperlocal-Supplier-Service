@@ -198,22 +198,33 @@ class HandleSupplierRequest:
     
 
     async def update_outstanding(self,data:UpdateOutstandingSupplierSchema):
-        if data.type=="DECREMENT":
-            raise HTTPException(
-                status_code=400,
-                detail=ErrorResponseTypDict(
-                    msg="Error : Creating Supplier Outstanding",
-                    description=f"Invalid Type {data.type.value}, Use DIRECT or INCREMENT",
-                    status_code=400,
-                    success=False
-                )
-            )
+        # if data.type=="DECREMENT":
+        #     raise HTTPException(
+        #         status_code=400,
+        #         detail=ErrorResponseTypDict(
+        #             msg="Error : Creating Supplier Outstanding",N``
+        #             description=f"Invalid Type {data.type.value}, Use DIRECT or INCREMENT",
+        #             status_code=400,
+        #             success=False
+        #         )
+        #     )
         res=await SupplierService(session=self.session).update_outstanding(data=data)
         return SuccessResponseTypDict(
             detail=BaseResponseTypDict(
                 msg="Supplier outstanding updated successfully",
                 status_code=200,
                 success=True
+            ),
+            data=res
+        )
+
+    async def get_outstanding_history(self, supplier_id: str, shop_id: str):
+        res = await SupplierService(session=self.session).get_outstanding_history(supplier_id=supplier_id, shop_id=shop_id)
+        return SuccessResponseTypDict(
+            detail=BaseResponseTypDict(
+                status_code=200,
+                success=True,
+                msg="Supplier outstanding cleared history fetched successfully"
             ),
             data=res
         )
