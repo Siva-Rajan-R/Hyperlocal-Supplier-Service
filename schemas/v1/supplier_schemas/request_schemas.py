@@ -57,6 +57,7 @@ class GetAllSupplierSchema(BaseModel):
     offset:int=Field(default=1)
     from_date:Optional[str]=None
     to_date:Optional[str]=None
+    has_outstanding:Optional[bool]=None
 
 class GetSupplierByShopIdSchema(BaseModel):
     shop_id:str
@@ -65,6 +66,7 @@ class GetSupplierByShopIdSchema(BaseModel):
     offset:int=Field(default=1)
     from_date:Optional[str]=None
     to_date:Optional[str]=None
+    has_outstanding:Optional[bool]=None
 
 class GetSupplierById(BaseModel):
     shop_id:str

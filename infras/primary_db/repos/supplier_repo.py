@@ -122,35 +122,99 @@ class SupplierRepo:
     
 
     async def get(self,data:GetAllSupplierSchema)-> List[dict] | []:
-        search_term=f"%{data.query}%"
         cursor=(data.offset-1)*data.limit
+        conds = []
+        if data.query:
+            search_term = f"%{data.query}%"
+            conds.append(or_(
+                Suppliers.id.ilike(search_term),
+                Suppliers.ui_id.ilike(search_term),
+                Suppliers.name.ilike(search_term),
+                Suppliers.gst_no.ilike(search_term),
+                Suppliers.contact_infos['phone_number'].astext.ilike(search_term),
+                Suppliers.contact_infos['email'].astext.ilike(search_term)
+            ))
+        if getattr(data, 'from_date', None):
+            try:
+                from_dt = datetime.strptime(data.from_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                conds.append(Suppliers.created_at >= from_dt)
+            except Exception:
+                pass
+        if getattr(data, 'to_date', None):
+            try:
+                to_date_str = data.to_date
+                if len(to_date_str) <= 10:
+                    to_date_str += ' 23:59:59'
+                to_dt = datetime.strptime(to_date_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+                conds.append(Suppliers.created_at <= to_dt)
+            except Exception:
+                pass
+        if getattr(data, 'has_outstanding', None) is not None:
+            from sqlalchemy import Float
+            amount_expr = func.cast(Suppliers.outstanding_infos['amount'].astext, Float)
+            if data.has_outstanding:
+                conds.append(and_(Suppliers.outstanding_infos != None, amount_expr > 0.0))
+            else:
+                conds.append(or_(Suppliers.outstanding_infos == None, amount_expr <= 0.0))
+
         stmt=(
             select(
                 *self.supplier_cols
             )
-            .offset(offset=cursor).limit(limit=data.limit)
         )
-
+        if conds:
+            stmt = stmt.where(and_(*conds))
+        
+        stmt = stmt.offset(offset=cursor).limit(limit=data.limit)
         res=(await self.session.execute(stmt)).mappings().all()
-
         return res
     
 
     async def getby_shop_id(self,data:GetSupplierByShopIdSchema)-> List[dict] | []:
-        search_term=f"%{data.query}%"
         cursor=(data.offset-1)*data.limit
+        conds = [Suppliers.shop_id==data.shop_id]
+        if data.query:
+            search_term = f"%{data.query}%"
+            conds.append(or_(
+                Suppliers.id.ilike(search_term),
+                Suppliers.ui_id.ilike(search_term),
+                Suppliers.name.ilike(search_term),
+                Suppliers.gst_no.ilike(search_term),
+                Suppliers.contact_infos['phone_number'].astext.ilike(search_term),
+                Suppliers.contact_infos['email'].astext.ilike(search_term)
+            ))
+        if getattr(data, 'from_date', None):
+            try:
+                from_dt = datetime.strptime(data.from_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                conds.append(Suppliers.created_at >= from_dt)
+            except Exception:
+                pass
+        if getattr(data, 'to_date', None):
+            try:
+                to_date_str = data.to_date
+                if len(to_date_str) <= 10:
+                    to_date_str += ' 23:59:59'
+                to_dt = datetime.strptime(to_date_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+                conds.append(Suppliers.created_at <= to_dt)
+            except Exception:
+                pass
+        if getattr(data, 'has_outstanding', None) is not None:
+            from sqlalchemy import Float
+            amount_expr = func.cast(Suppliers.outstanding_infos['amount'].astext, Float)
+            if data.has_outstanding:
+                conds.append(and_(Suppliers.outstanding_infos != None, amount_expr > 0.0))
+            else:
+                conds.append(or_(Suppliers.outstanding_infos == None, amount_expr <= 0.0))
+
         stmt=(
             select(
                 *self.supplier_cols
             )
-            .where(
-                Suppliers.shop_id==data.shop_id
-            )
+            .where(and_(*conds))
             .offset(offset=cursor).limit(limit=data.limit)
         )
 
         res=(await self.session.execute(stmt)).mappings().all()
-
         return res
 
     async def getby_id(self,data:GetSupplierById)-> dict:
@@ -165,7 +229,6 @@ class SupplierRepo:
         )
 
         res=(await self.session.execute(stmt)).mappings().one_or_none()
-
         return res
 
     async def get_outstanding_history(self, supplier_id: str, shop_id: str):

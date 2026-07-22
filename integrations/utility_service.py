@@ -1,11 +1,16 @@
 import httpx
 from icecream import ic
 from typing import Dict, Any
+import os
+from dotenv import load_dotenv
+load_dotenv()
 
 # BASE_URL = "http://127.0.0.1:8000/utilities"
-BASE_URL = "http://utility-service:8000/utilities"
+BASE_URL = f"{os.getenv("UTILITY_SERVICE_URL")}/utilities"
+ic(BASE_URL)
 
 async def get_shop_category(shop_id: str, category_id: str) -> Dict[str, Any]:
+    ic(BASE_URL)
     if not shop_id or not category_id:
         return {}
     try:
@@ -36,6 +41,7 @@ async def get_shop_unit(shop_id: str, unit_id: str) -> Dict[str, Any]:
 
 
 async def get_ui_id(shop_id:str,entity_name:str="SUPPLIER"):
+    ic(BASE_URL)
     try:
         async with httpx.AsyncClient() as request:
             response=await request.get(f"{BASE_URL}/shop-ui-ids/next/{shop_id}/{entity_name}")

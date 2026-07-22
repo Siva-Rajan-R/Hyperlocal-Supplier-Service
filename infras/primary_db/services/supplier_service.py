@@ -121,13 +121,9 @@ class SupplierService:
                 
                 analytics_payload = {
                     "shop_id": data.shop_id,
-                    "datas": [
-                        {
-                            "supplier_id": supplier_id,
-                            "outstanding_amounts": 0,
-                            "cleared_amounts": 0
-                        }
-                    ]
+                    "entity_name": "SUPPLIER",
+                    "entity_id": str(supplier_id),
+                    "action": "CREATE"
                 }
                 
                 await rabbitmq_msg_obj.publish_event(
@@ -149,6 +145,7 @@ class SupplierService:
 
             
             try:
+                supp_name = getattr(data, 'name', None) or 'Supplier'
                 from messaging.main import RabbitMQMessagingConfig
                 rabbitmq_msg_obj = RabbitMQMessagingConfig()
                 await rabbitmq_msg_obj.publish_event(
@@ -157,12 +154,13 @@ class SupplierService:
                     payload={
                         "shop_id": data.shop_id,
                         "user_name": "Hyperlocal-User",
-                        "service": "Supplier",
+                        "service": "SUPPLIER",
                         "action": "CREATED",
-                        "entity_type": "Supplier",
-                        "entity_id": supplier_id,
-                        "description": f"Created supplier {supplier_id}",
-                        "changes": [{"field": "id", "before": str(supplier_id), "after": "CREATED"}]
+                        "entity_type": "SUPPLIER",
+                        "entity_id": str(supplier_id),
+                        "entity_name": str(supp_name),
+                        "description": f"Created Supplier {supp_name} ({supplier_id})",
+                        "changes": []
                     },
                     headers={}
                 )
@@ -229,6 +227,29 @@ class SupplierService:
             try:
                 from messaging.main import RabbitMQMessagingConfig
                 rabbitmq_msg_obj = RabbitMQMessagingConfig()
+                
+                def _is_empty_or_none(val):
+                    if val is None: return True
+                    if isinstance(val, (dict, list, set, str, tuple)) and len(val) == 0: return True
+                    return str(val).strip() in ("None", "{}", "[]", "", "null", "NoneType")
+
+                dumped_updates = data.model_dump(exclude_unset=True, exclude_none=True)
+                changes = []
+                for key, new_val in dumped_updates.items():
+                    if key in ["id", "shop_id", "user_id", "cur_user_id"]:
+                        continue
+                    prev_val = supplier_get_res.get(key)
+                    if _is_empty_or_none(prev_val) and _is_empty_or_none(new_val):
+                        continue
+                    if prev_val != new_val and str(prev_val).strip() != str(new_val).strip():
+                        changes.append({
+                            "field": key,
+                            "before": str(prev_val) if prev_val is not None else "None",
+                            "after": str(new_val) if new_val is not None else "None"
+                        })
+
+                supp_name = supplier_get_res.get("name") or getattr(data, "name", None) or "Supplier"
+
                 await rabbitmq_msg_obj.publish_event(
                     routing_key="activity_logs.routing.key",
                     exchange_name="activity_logs.exchange",
@@ -237,15 +258,37 @@ class SupplierService:
                         "user_name": "Hyperlocal-User",
                         "service": "SUPPLIER",
                         "action": "UPDATED",
-                        "entity_type": "Supplier",
-                        "entity_id": data.id,
-                        "description": f"Created supplier {data.id}",
-                        "changes": [{"field": "id", "before": str(data.id), "after": "UPDATE"}]
+                        "entity_type": "SUPPLIER",
+                        "entity_id": str(data.id),
+                        "entity_name": str(supp_name),
+                        "description": f"Updated Supplier {supp_name} ({data.id})",
+                        "changes": changes
                     },
                     headers={}
                 )
+
+                analytics_payload = {
+                    "shop_id": data.shop_id,
+                    "entity_name": "SUPPLIER",
+                    "entity_id": str(data.id),
+                    "action": "UPDATE"
+                }
+                await rabbitmq_msg_obj.publish_event(
+                    routing_key="analytics.service.routing.key",
+                    exchange_name="analytics.service.exchange",
+                    payload=analytics_payload,
+                    headers={
+                        "entity_name": "supplier_event",
+                        "service_name": "ANALYTICS",
+                        "saga_id": "none",
+                        "reply_key": "none",
+                        "reply_exchange": "none",
+                        "reply_entity_name": "none",
+                        "body": analytics_payload
+                    }
+                )
             except Exception as e:
-                ic(f"Failed to publish activity log: {e}")
+                ic(f"Failed to publish activity log/analytics: {e}")
 
         return res
 
@@ -266,6 +309,7 @@ class SupplierService:
                 )
             )
 
+            supp_name = supplier_get_res.get("name") or "Supplier"
 
             try:
                 from messaging.main import RabbitMQMessagingConfig
@@ -278,24 +322,20 @@ class SupplierService:
                         "user_name": "Hyperlocal-User",
                         "service": "SUPPLIER",
                         "action": "DELETED",
-                        "entity_type": "Supplier",
-                        "entity_id": data.id,
-                        "description": f"Created Supplier {data.id}",
-                        "changes": [{"field": "id", "before": str(data.id), "after": "DELETED"}]
+                        "entity_type": "SUPPLIER",
+                        "entity_id": str(data.id),
+                        "entity_name": str(supp_name),
+                        "description": f"Deleted Supplier {supp_name} ({data.id})",
+                        "changes": []
                     },
                     headers={}
                 )
 
                 analytics_payload = {
                     "shop_id": data.shop_id,
-                    "action": "delete",
-                    "datas": [
-                        {
-                            "supplier_id": data.id,
-                            "outstanding_amounts": -float(total_outstanding),
-                            "cleared_amounts": 0.0
-                        }
-                    ]
+                    "entity_name": "SUPPLIER",
+                    "entity_id": str(data.id),
+                    "action": "DELETE"
                 }
                 await rabbitmq_msg_obj.publish_event(
                     routing_key="analytics.service.routing.key",
@@ -358,6 +398,32 @@ class SupplierService:
                     total_suppliers=0
                 )
             )
+
+            try:
+                from messaging.main import RabbitMQMessagingConfig
+                rabbitmq_msg_obj = RabbitMQMessagingConfig()
+                analytics_payload = {
+                    "shop_id": data.shop_id,
+                    "entity_name": "SUPPLIER",
+                    "entity_id": str(data.id),
+                    "action": "UPDATE"
+                }
+                await rabbitmq_msg_obj.publish_event(
+                    routing_key="analytics.service.routing.key",
+                    exchange_name="analytics.service.exchange",
+                    payload=analytics_payload,
+                    headers={
+                        "entity_name": "supplier_event",
+                        "service_name": "ANALYTICS",
+                        "saga_id": "none",
+                        "reply_key": "none",
+                        "reply_exchange": "none",
+                        "reply_entity_name": "none",
+                        "body": analytics_payload
+                    }
+                )
+            except Exception as e:
+                ic(f"Failed to publish analytics event on supplier update_outstanding: {e}")
 
         return res
     
