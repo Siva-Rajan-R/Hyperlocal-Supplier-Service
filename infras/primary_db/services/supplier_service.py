@@ -51,6 +51,7 @@ class SupplierService:
         self.supplier_stats_repo_obj=SupplierStatsRepo
 
 
+    @start_db_transaction
     async def create(self,data:CreateSupplierSchema)-> dict | None:
         # Check if supplier already exists with the same mobile_number or email in this shop
         from sqlalchemy import select, or_
@@ -114,12 +115,15 @@ class SupplierService:
             )
             ic(cust_obj)
         if res:
-            await self.supplier_stats_repo_obj.update_stats(
-                data=SupplierStatsSchema(
-                    total_outstanding=0,
-                    total_suppliers=1
+            try:
+                await self.supplier_stats_repo_obj.update_stats(
+                    data=SupplierStatsSchema(
+                        total_outstanding=0,
+                        total_suppliers=1
+                    )
                 )
-            )
+            except Exception as e:
+                ic(f"Failed to update supplier stats in Read DB: {e}")
             try:
                 from messaging.main import RabbitMQMessagingConfig
                 rabbitmq_msg_obj = RabbitMQMessagingConfig()
@@ -172,8 +176,10 @@ class SupplierService:
             except Exception as e:
                 ic(f"Failed to publish activity log: {e}")
 
+        await self.session.commit()
         return res
     
+    @start_db_transaction
     async def update(self,data:UpdateSupplierSchema)-> dict | None:
         # Fetch old supplier to compare changes
         supplier_get_res = await self.supplier_repo_obj.getby_id(GetSupplierById(id=data.id, shop_id=data.shop_id))
@@ -295,8 +301,10 @@ class SupplierService:
             except Exception as e:
                 ic(f"Failed to publish activity log/analytics: {e}")
 
+        await self.session.commit()
         return res
 
+    @start_db_transaction
     async def delete(self,data:DeleteSupplierSchema)-> dict | None:
         supplier_get_res=await self.supplier_repo_obj.getby_id(data=GetSupplierById(shop_id=data.shop_id,id=data.id))
         if not supplier_get_res:
@@ -359,8 +367,10 @@ class SupplierService:
             except Exception as e:
                 ic(f"Failed to publish events: {e}")
 
+        await self.session.commit()
         return res
     
+    @start_db_transaction
     async def update_outstanding(self,data:UpdateOutstandingSupplierSchema):
         supplier_get_res=await self.supplier_repo_obj.getby_id(data=GetSupplierById(shop_id=data.shop_id,id=data.id))
         if not supplier_get_res:
@@ -374,7 +384,7 @@ class SupplierService:
             cur_outst_amt=cur_outst_amt+prev_outst_amt
         
         elif data.type==SupplierOutstandingUpdateTypeEnums.DECREMENT:
-            cur_outst_amt=abs(cur_outst_amt-prev_outst_amt)
+            cur_outst_amt=max(0.0, prev_outst_amt - data.outstanding_infos.amount)
         
         original_cleared_amt = data.outstanding_infos.amount
         outstanding_infos=SupplierOutstandingInfosType(amount=cur_outst_amt)
@@ -430,6 +440,7 @@ class SupplierService:
             except Exception as e:
                 ic(f"Failed to publish analytics event on supplier update_outstanding: {e}")
 
+        await self.session.commit()
         return res
     
 

@@ -118,6 +118,20 @@ class SupplierRepo:
         )
 
         res=(await self.session.execute(stmt)).mappings().one_or_none()
+        if not res:
+            fallback_stmt=(
+                update(
+                    Suppliers
+                )
+                .where(
+                    Suppliers.id==data.id
+                )
+                .values(
+                    outstanding_infos=data.outstanding_infos.model_dump(mode='json')
+                )
+                .returning(*self.supplier_cols)
+            )
+            res=(await self.session.execute(fallback_stmt)).mappings().one_or_none()
         return res
     
 
@@ -223,12 +237,21 @@ class SupplierRepo:
                 *self.supplier_cols
             )
             .where(
-                Suppliers.id==data.id,
-                Suppliers.shop_id==data.shop_id
+                or_(Suppliers.id == data.id, Suppliers.ui_id == data.id),
+                Suppliers.shop_id == data.shop_id
             )
         )
-
         res=(await self.session.execute(stmt)).mappings().one_or_none()
+        if not res:
+            fallback_stmt=(
+                select(
+                    *self.supplier_cols
+                )
+                .where(
+                    or_(Suppliers.id == data.id, Suppliers.ui_id == data.id)
+                )
+            )
+            res=(await self.session.execute(fallback_stmt)).mappings().one_or_none()
         return res
 
     async def get_outstanding_history(self, supplier_id: str, shop_id: str):
