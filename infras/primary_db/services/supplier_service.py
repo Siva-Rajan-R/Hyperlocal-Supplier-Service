@@ -304,7 +304,7 @@ class SupplierService:
         await self.session.commit()
         return res
 
-    @start_db_transaction
+    # @start_db_transaction
     async def delete(self,data:DeleteSupplierSchema)-> dict | None:
         supplier_get_res=await self.supplier_repo_obj.getby_id(data=GetSupplierById(shop_id=data.shop_id,id=data.id))
         if not supplier_get_res:
