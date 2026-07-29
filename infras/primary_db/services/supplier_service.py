@@ -51,7 +51,7 @@ class SupplierService:
         self.supplier_stats_repo_obj=SupplierStatsRepo
 
 
-    @start_db_transaction
+    # @start_db_transaction
     async def create(self,data:CreateSupplierSchema)-> dict | None:
         # Check if supplier already exists with the same mobile_number or email in this shop
         from sqlalchemy import select, or_
@@ -179,7 +179,7 @@ class SupplierService:
         await self.session.commit()
         return res
     
-    @start_db_transaction
+    # @start_db_transaction
     async def update(self,data:UpdateSupplierSchema)-> dict | None:
         # Fetch old supplier to compare changes
         supplier_get_res = await self.supplier_repo_obj.getby_id(GetSupplierById(id=data.id, shop_id=data.shop_id))
