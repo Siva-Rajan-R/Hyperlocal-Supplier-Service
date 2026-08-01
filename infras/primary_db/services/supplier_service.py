@@ -370,7 +370,7 @@ class SupplierService:
         await self.session.commit()
         return res
     
-    @start_db_transaction
+    # @start_db_transaction
     async def update_outstanding(self,data:UpdateOutstandingSupplierSchema):
         supplier_get_res=await self.supplier_repo_obj.getby_id(data=GetSupplierById(shop_id=data.shop_id,id=data.id))
         if not supplier_get_res:
@@ -386,12 +386,14 @@ class SupplierService:
         elif data.type==SupplierOutstandingUpdateTypeEnums.DECREMENT:
             cur_outst_amt=max(0.0, prev_outst_amt - data.outstanding_infos.amount)
         
-        original_cleared_amt = data.outstanding_infos.amount
-        outstanding_infos=SupplierOutstandingInfosType(amount=cur_outst_amt)
+        original_cleared_amt = data.cleared_amount if data.cleared_amount is not None else data.outstanding_infos.amount
+        outst_amt_for_history = data.outstanding_amount if data.outstanding_amount is not None else cur_outst_amt
+
+        updated_outstanding_infos = SupplierOutstandingInfosType(amount=cur_outst_amt)
 
         final_data=UpdateOutstandingSupplierSchema(
-            outstanding_infos=outstanding_infos,
-            outstanding_amount=prev_outst_amt,
+            outstanding_infos=updated_outstanding_infos,
+            outstanding_amount=outst_amt_for_history,
             cleared_amount=original_cleared_amt,
             **data.model_dump(exclude=["outstanding_infos", "outstanding_amount", "cleared_amount"])
         )

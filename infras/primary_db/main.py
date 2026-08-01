@@ -17,6 +17,8 @@ async def init_pg_db():
         async with ENGINE.connect() as conn:
             # await conn.run_sync(BASE.metadata.drop_all)
             await conn.run_sync(BASE.metadata.create_all)
+            from sqlalchemy import text
+            await conn.execute(text("ALTER TABLE supplier_outstanding_history ADD COLUMN IF NOT EXISTS invoice_no VARCHAR;"))
             await conn.commit()
         ic("...Databse initialized successfully...")
     except Exception as e:

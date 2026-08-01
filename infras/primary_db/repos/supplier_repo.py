@@ -90,11 +90,12 @@ class SupplierRepo:
                     id=str(uuid.uuid4()),
                     supplier_id=data.id,
                     shop_id=data.shop_id,
-                    cleared_amount=data.cleared_amount or 0.0,
-                    outstanding_amount=data.outstanding_amount or 0.0,
+                    cleared_amount=data.cleared_amount if data.cleared_amount is not None else 0.0,
+                    outstanding_amount=data.outstanding_amount if data.outstanding_amount is not None else (data.outstanding_infos.amount if data.outstanding_infos else 0.0),
                     payment_method=getattr(data, "payment_method", "N/A") or "N/A",
                     entity_name=data.entity_name,
                     entity_id=data.entity_id,
+                    invoice_no=getattr(data, "invoice_no", None),
                     notes=getattr(data, "notes", None) or f"Cleared outstanding for {data.entity_name}"
                 )
                 self.session.add(history_record)
@@ -271,6 +272,7 @@ class SupplierRepo:
                 "payment_method": r.payment_method,
                 "entity_name": r.entity_name,
                 "entity_id": r.entity_id,
+                "invoice_no": getattr(r, "invoice_no", None),
                 "notes": r.notes,
                 "created_at": r.created_at
             }

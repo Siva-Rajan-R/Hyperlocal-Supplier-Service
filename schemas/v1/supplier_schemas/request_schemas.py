@@ -41,6 +41,7 @@ class UpdateOutstandingSupplierSchema(BaseModel):
     type:SupplierOutstandingUpdateTypeEnums
     entity_name: Optional[str] = None
     entity_id: Optional[str] = None
+    invoice_no: Optional[str] = None
     payment_method: Optional[str] = None
     notes: Optional[str] = None
     outstanding_amount: Optional[float] = None

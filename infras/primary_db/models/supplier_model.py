@@ -33,5 +33,6 @@ class SupplierOutstandingHistory(BASE):
     payment_method = Column(String, nullable=False)
     entity_name = Column(String, nullable=False)
     entity_id = Column(String, nullable=False)
+    invoice_no = Column(String, nullable=True)
     notes = Column(String, nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
