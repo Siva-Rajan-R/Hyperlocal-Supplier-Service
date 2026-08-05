@@ -21,6 +21,11 @@ SHOP_ID="TEST-SHOP"
 async def create(data:CreateSupplierSchema,session:PG_ASYNC_SESSION):
     return await HandleSupplierRequest(session=session).create(data=data)
 
+
+@router.post('/bulk')
+async def create_bulk(data:List[CreateSupplierSchema],session:PG_ASYNC_SESSION):
+    return await HandleSupplierRequest(session=session).create_bulk(data=data)
+
 @router.put('')
 async def update(data:UpdateSupplierSchema,session:PG_ASYNC_SESSION):
     return await HandleSupplierRequest(session=session).update(data=data)

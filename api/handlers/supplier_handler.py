@@ -74,6 +74,27 @@ class HandleSupplierRequest:
         )
 
 
+    async def create_bulk(self, data: List[CreateSupplierSchema]):
+        created_list = []
+        for item in data:
+            try:
+                res_obj = await self.create(data=item)
+                if isinstance(res_obj, dict) and res_obj.get("data"):
+                    created_list.append(res_obj["data"])
+            except Exception as e:
+                ic(f"Error creating bulk supplier item: {e}")
+
+        return SuccessResponseTypDict(
+            detail=BaseResponseTypDict(
+                msg="Bulk suppliers created successfully",
+                status_code=201,
+                success=True
+            ),
+            data=created_list
+        )
+
+
+
     async def update(self,data:UpdateSupplierSchema):
         if data.contact_infos and (not data.contact_infos.email and not data.contact_infos.mobile_number):
             raise HTTPException(

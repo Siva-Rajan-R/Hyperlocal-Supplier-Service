@@ -179,6 +179,18 @@ class SupplierService:
         await self.session.commit()
         return res
     
+
+    async def create_bulk(self, data: List[CreateSupplierSchema]) -> List[dict]:
+        results = []
+        for item in data:
+            try:
+                res = await self.create(data=item)
+                if res:
+                    results.append(res)
+            except Exception as e:
+                ic(f"Error creating bulk supplier item: {e}")
+        return results
+    
     # @start_db_transaction
     async def update(self,data:UpdateSupplierSchema)-> dict | None:
         # Fetch old supplier to compare changes
