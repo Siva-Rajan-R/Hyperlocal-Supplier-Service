@@ -180,7 +180,7 @@ class SupplierRepo:
         if conds:
             stmt = stmt.where(and_(*conds))
         
-        stmt = stmt.offset(offset=cursor).limit(limit=data.limit)
+        stmt = stmt.order_by(Suppliers.created_at.desc()).offset(offset=cursor).limit(limit=data.limit)
         res=(await self.session.execute(stmt)).mappings().all()
         return res
     
@@ -226,6 +226,7 @@ class SupplierRepo:
                 *self.supplier_cols
             )
             .where(and_(*conds))
+            .order_by(Suppliers.created_at.desc())
             .offset(offset=cursor).limit(limit=data.limit)
         )
 
