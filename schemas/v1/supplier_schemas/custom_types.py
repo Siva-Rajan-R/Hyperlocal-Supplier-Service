@@ -15,9 +15,9 @@ class SupplierContactInfosType(BaseModel):
     mobile_number:Optional[str]=None
 
 class SupplierContactPersonInfosType(BaseModel):
-    name:str
-    email:Optional[EmailStr]=None
-    mobile_number:Optional[str]=None
+    name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    mobile_number: Optional[str] = None
 
 class SupplierOutstandingInfosType(BaseModel):
     amount:float

@@ -34,7 +34,6 @@ class SupplierRepo:
         )
 
 
-    @start_db_transaction
     async def get_next_sequence(self, shop_id: str, start_from: int) -> int:
         from sqlalchemy import text
         seq_name = f"seq_supplier_{shop_id.replace('-', '_').lower()}"
@@ -42,7 +41,6 @@ class SupplierRepo:
         res = await self.session.execute(text(f"SELECT nextval('{seq_name}')"))
         return res.scalar_one()
 
-    @start_db_transaction
     async def create(self,data:CreateSupplierDbSchema)->dict | None:
         stmt=(
             insert(
@@ -55,7 +53,6 @@ class SupplierRepo:
         return res
     
 
-    @start_db_transaction
     async def update(self,data:UpdateSupplierDbSchema)->dict|None:
         stmt=update(
             Suppliers

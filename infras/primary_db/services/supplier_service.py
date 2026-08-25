@@ -73,23 +73,18 @@ class SupplierService:
             )
             existing_sup = (await self.session.execute(stmt)).scalars().first()
             if existing_sup:
-                raise HTTPException(
-                    status_code=400,
-                    detail=ErrorResponseTypDict(
-                        msg="Error : Creating Supplier",
-                        description="Supplier with this email or mobile number already exists in this shop",
-                        success=False,
-                        status_code=400
-                    )
-                )
+                ic(f"Supplier with email {email} or mobile {mobile_number} already exists, skipping...")
+                return None
 
         supplier_id:str=generate_uuid()
         ui_id = None
         ui_id_res = await get_ui_id(shop_id=data.shop_id)
         if isinstance(ui_id_res, dict) and "prefix" in ui_id_res:
             ui_id = f"{ui_id_res.get('prefix')}-{ui_id_res.get('current_number')}"
+        elif isinstance(ui_id_res, str) and ui_id_res:
+            ui_id = ui_id_res
         else:
-            return False
+            ui_id = f"SUP-{supplier_id[:6].upper()}"
 
         final_data=CreateSupplierDbSchema(
             **data.model_dump(mode="json",exclude_none=True,exclude_unset=True),
@@ -166,9 +161,9 @@ class SupplierService:
                         "service": "SUPPLIER",
                         "action": "CREATED",
                         "entity_type": "SUPPLIER",
-                        "entity_id": str(supplier_id),
+                        "entity_id": str(ui_id),
                         "entity_name": str(supp_name),
-                        "description": f"Created Supplier {supp_name} ({supplier_id})",
+                        "description": f"Created Supplier {supp_name} ({ui_id})",
                         "changes": []
                     },
                     headers={}
@@ -227,9 +222,9 @@ class SupplierService:
             name=data.name if data.name is not None else supplier_get_res.get("name"),
             gst_no=data.gst_no if data.gst_no is not None else supplier_get_res.get("gst_no"),
             additional_infos=data.additional_infos if data.additional_infos is not None else supplier_get_res.get("additional_infos"),
-            location_infos=merged_location if merged_location is not None else existing_location,
-            contact_infos=merged_contact if merged_contact is not None else existing_contact,
-            contact_person_infos=merged_contact_person if merged_contact_person is not None else existing_contact_person
+            location_infos=merged_location if merged_location else (existing_location if existing_location else None),
+            contact_infos=merged_contact if merged_contact else (existing_contact if existing_contact else None),
+            contact_person_infos=merged_contact_person if merged_contact_person else (existing_contact_person if existing_contact_person else None)
         )
 
         res=await self.supplier_repo_obj.update(data=final_data) 
@@ -272,6 +267,7 @@ class SupplierService:
                         })
 
                 supp_name = supplier_get_res.get("name") or getattr(data, "name", None) or "Supplier"
+                effective_ui_id = supplier_get_res.get("ui_id") or getattr(data, "ui_id", None) or str(data.id)
 
                 await rabbitmq_msg_obj.publish_event(
                     routing_key="activity_logs.routing.key",
@@ -282,9 +278,9 @@ class SupplierService:
                         "service": "SUPPLIER",
                         "action": "UPDATED",
                         "entity_type": "SUPPLIER",
-                        "entity_id": str(data.id),
+                        "entity_id": str(effective_ui_id),
                         "entity_name": str(supp_name),
-                        "description": f"Updated Supplier {supp_name} ({data.id})",
+                        "description": f"Updated Supplier {supp_name} ({effective_ui_id})",
                         "changes": changes
                     },
                     headers={}
