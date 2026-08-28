@@ -79,7 +79,30 @@ class SupplierRepo:
 
     @start_db_transaction
     async def update_outstanding(self,data:UpdateOutstandingSupplierSchema):
-        if getattr(data, "entity_name", None) and getattr(data, "entity_id", None):
+        if getattr(data, "clear_entity_history", False) and getattr(data, "entity_id", None):
+            try:
+                from ..models.supplier_model import SupplierOutstandingHistory
+                from sqlalchemy import or_
+                del_conds = [
+                    SupplierOutstandingHistory.entity_id == data.entity_id
+                ]
+                if getattr(data, "invoice_no", None):
+                    del_conds.append(SupplierOutstandingHistory.invoice_no == data.invoice_no)
+                    del_conds.append(SupplierOutstandingHistory.entity_id == data.invoice_no)
+                if data.entity_id:
+                    del_conds.append(SupplierOutstandingHistory.invoice_no == data.entity_id)
+
+                del_stmt = delete(SupplierOutstandingHistory).where(
+                    SupplierOutstandingHistory.supplier_id == data.id,
+                    SupplierOutstandingHistory.shop_id == data.shop_id,
+                    or_(*del_conds)
+                )
+                await self.session.execute(del_stmt)
+                await self.session.flush()
+                ic("Successfully deleted supplier outstanding history records for entity:", data.entity_id)
+            except Exception as ex:
+                ic("Error deleting supplier outstanding history:", ex)
+        elif getattr(data, "entity_name", None) and getattr(data, "entity_id", None):
             try:
                 from ..models.supplier_model import SupplierOutstandingHistory
                 import uuid
