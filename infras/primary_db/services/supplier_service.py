@@ -1,3 +1,4 @@
+from core.utils.user_context import get_activity_log_user_info
 from ..main import AsyncSession
 from ..repos.supplier_repo import SupplierRepo
 from schemas.v1.supplier_schemas.request_schemas import CreateSupplierSchema,UpdateOutstandingSupplierSchema,UpdateSupplierSchema,DeleteSupplierSchema,GetAllSupplierSchema,GetSupplierById,GetSupplierByShopIdSchema
@@ -28,7 +29,7 @@ async def _send_activity_log(shop_id: str, action: str, entity_id: str, descript
             exchange_name="activity_logs.exchange",
             payload={
                 "shop_id": shop_id,
-                "user_name": "Hyperlocal-User",
+                **get_activity_log_user_info(),
                 "service": "SUPPLIER",
                 "action": action,
                 "entity_type": "SUPPLIER",
@@ -157,7 +158,7 @@ class SupplierService:
                     exchange_name="activity_logs.exchange",
                     payload={
                         "shop_id": data.shop_id,
-                        "user_name": "Hyperlocal-User",
+                        **get_activity_log_user_info(),
                         "service": "SUPPLIER",
                         "action": "CREATED",
                         "entity_type": "SUPPLIER",
@@ -274,7 +275,7 @@ class SupplierService:
                     exchange_name="activity_logs.exchange",
                     payload={
                         "shop_id": data.shop_id,
-                        "user_name": "Hyperlocal-User",
+                        **get_activity_log_user_info(),
                         "service": "SUPPLIER",
                         "action": "UPDATED",
                         "entity_type": "SUPPLIER",
@@ -340,7 +341,7 @@ class SupplierService:
                     exchange_name="activity_logs.exchange",
                     payload={
                         "shop_id": data.shop_id,
-                        "user_name": "Hyperlocal-User",
+                        **get_activity_log_user_info(),
                         "service": "SUPPLIER",
                         "action": "DELETED",
                         "entity_type": "SUPPLIER",
