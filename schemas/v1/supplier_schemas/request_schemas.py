@@ -60,6 +60,15 @@ class GetAllSupplierSchema(BaseModel):
     from_date:Optional[str]=None
     to_date:Optional[str]=None
     has_outstanding:Optional[bool]=None
+    exclude_outstanding:Optional[bool]=None
+    exclude_outstaitng:Optional[bool]=None
+    exclude_outstating:Optional[bool]=None
+    exclude_outstanding_suppliers:Optional[bool]=None
+    exclude_non_outstanding:Optional[bool]=None
+    exclude_non_outstating:Optional[bool]=None
+    exclude_no_outstanding:Optional[bool]=None
+    exclude_zero_outstanding:Optional[bool]=None
+    exclude_without_outstanding:Optional[bool]=None
 
 class GetSupplierByShopIdSchema(BaseModel):
     shop_id:str
@@ -69,6 +78,15 @@ class GetSupplierByShopIdSchema(BaseModel):
     from_date:Optional[str]=None
     to_date:Optional[str]=None
     has_outstanding:Optional[bool]=None
+    exclude_outstanding:Optional[bool]=None
+    exclude_outstaitng:Optional[bool]=None
+    exclude_outstating:Optional[bool]=None
+    exclude_outstanding_suppliers:Optional[bool]=None
+    exclude_non_outstanding:Optional[bool]=None
+    exclude_non_outstating:Optional[bool]=None
+    exclude_no_outstanding:Optional[bool]=None
+    exclude_zero_outstanding:Optional[bool]=None
+    exclude_without_outstanding:Optional[bool]=None
 
 class GetSupplierById(BaseModel):
     shop_id:str
@@ -80,6 +98,15 @@ class VerifySupplierSchema(BaseModel):
     mobile_number:Optional[str]=None
 
 class GetSupplierOutstandingHistorySchema(BaseModel):
-    supplier_id: str
-    shop_id: str
+    supplier_id: Optional[str] = None
+    shop_id: Optional[str] = None
+    limit: Optional[int] = None
+    offset: Optional[int] = 1
+    exclude_canceled: Optional[bool] = None
+    exclude_cancle: Optional[bool] = None
+    exclude_cancel: Optional[bool] = None
+    exclude_canceled_purchase: Optional[bool] = None
+    exclude_canceled_purchases: Optional[bool] = None
+    exclude_cancelled_purchases: Optional[bool] = None
+    exclude_cancelled: Optional[bool] = None
 

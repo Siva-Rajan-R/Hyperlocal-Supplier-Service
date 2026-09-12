@@ -1,5 +1,4 @@
-from icecream import ic
-from schemas.v1.supplier_schemas.request_schemas import CreateSupplierSchema,UpdateOutstandingSupplierSchema,UpdateSupplierSchema,DeleteSupplierSchema,GetAllSupplierSchema,GetSupplierById,GetSupplierByShopIdSchema
+from schemas.v1.supplier_schemas.request_schemas import CreateSupplierSchema,UpdateOutstandingSupplierSchema,UpdateSupplierSchema,DeleteSupplierSchema,GetAllSupplierSchema,GetSupplierById,GetSupplierByShopIdSchema,GetSupplierOutstandingHistorySchema
 from schemas.v1.supplier_schemas.db_schemas import CreateSupplierDbSchema,UpdateSupplierDbSchema,DeleteSupplierDbSchema
 from models.service_models.base_service_model import BaseServiceModel
 from hyperlocal_platform.core.models.req_res_models import SuccessResponseTypDict,ErrorResponseTypDict,BaseResponseTypDict
@@ -252,8 +251,8 @@ class HandleSupplierRequest:
             data=res
         )
 
-    async def get_outstanding_history(self, supplier_id: str, shop_id: str):
-        res = await SupplierService(session=self.session).get_outstanding_history(supplier_id=supplier_id, shop_id=shop_id)
+    async def get_outstanding_history(self, supplier_id: str, shop_id: str, data: Optional[GetSupplierOutstandingHistorySchema] = None):
+        res = await SupplierService(session=self.session).get_outstanding_history(supplier_id=supplier_id, shop_id=shop_id, data=data)
         return SuccessResponseTypDict(
             detail=BaseResponseTypDict(
                 status_code=200,

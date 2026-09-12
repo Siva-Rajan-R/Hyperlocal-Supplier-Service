@@ -3,7 +3,7 @@ from sqlalchemy import delete
 from core.utils.user_context import get_activity_log_user_info
 from ..main import AsyncSession
 from ..repos.supplier_repo import SupplierRepo
-from schemas.v1.supplier_schemas.request_schemas import CreateSupplierSchema,UpdateOutstandingSupplierSchema,UpdateSupplierSchema,DeleteSupplierSchema,GetAllSupplierSchema,GetSupplierById,GetSupplierByShopIdSchema
+from schemas.v1.supplier_schemas.request_schemas import CreateSupplierSchema,UpdateOutstandingSupplierSchema,UpdateSupplierSchema,DeleteSupplierSchema,GetAllSupplierSchema,GetSupplierById,GetSupplierByShopIdSchema,GetSupplierOutstandingHistorySchema
 from schemas.v1.supplier_schemas.db_schemas import CreateSupplierDbSchema,UpdateSupplierDbSchema,DeleteSupplierDbSchema
 from schemas.v1.supplier_schemas.custom_types import SupplierOutstandingInfosType
 from models.service_models.base_service_model import BaseServiceModel
@@ -508,5 +508,5 @@ class SupplierService:
         res=await self.supplier_repo_obj.getby_shop_id(data=data)
         return res
 
-    async def get_outstanding_history(self, supplier_id: str, shop_id: str):
-        return await self.supplier_repo_obj.get_outstanding_history(supplier_id=supplier_id, shop_id=shop_id)
+    async def get_outstanding_history(self, supplier_id: str, shop_id: str, data: Optional[GetSupplierOutstandingHistorySchema] = None):
+        return await self.supplier_repo_obj.get_outstanding_history(supplier_id=supplier_id, shop_id=shop_id, data=data)

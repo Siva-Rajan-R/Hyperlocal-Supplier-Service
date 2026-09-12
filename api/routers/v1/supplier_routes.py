@@ -4,7 +4,7 @@ from infras.primary_db.main import get_pg_async_session,AsyncSession
 from hyperlocal_platform.core.enums.timezone_enum import TimeZoneEnum
 from core.utils.validate_fields import validate_fields
 from ...handlers.supplier_handler import HandleSupplierRequest
-from schemas.v1.supplier_schemas.request_schemas import CreateSupplierSchema,UpdateOutstandingSupplierSchema,UpdateSupplierSchema,DeleteSupplierSchema,GetAllSupplierSchema,GetSupplierById,GetSupplierByShopIdSchema
+from schemas.v1.supplier_schemas.request_schemas import CreateSupplierSchema,UpdateOutstandingSupplierSchema,UpdateSupplierSchema,DeleteSupplierSchema,GetAllSupplierSchema,GetSupplierById,GetSupplierByShopIdSchema,GetSupplierOutstandingHistorySchema
 from typing import Optional,List
 print(TimeZoneEnum)
 
@@ -53,8 +53,10 @@ async def get(session:PG_ASYNC_SESSION,data:GetAllSupplierSchema=Depends()):
     return await HandleSupplierRequest(session=session).get(data=data)
 
 @router.get('/cleared-history/{shop_id}/{supplier_id}')
-async def get_outstanding_history(shop_id: str, supplier_id: str, session: PG_ASYNC_SESSION):
-    return await HandleSupplierRequest(session=session).get_outstanding_history(supplier_id=supplier_id, shop_id=shop_id)
+async def get_outstanding_history(shop_id: str, supplier_id: str, session: PG_ASYNC_SESSION, data: GetSupplierOutstandingHistorySchema = Depends()):
+    data.shop_id = shop_id
+    data.supplier_id = supplier_id
+    return await HandleSupplierRequest(session=session).get_outstanding_history(supplier_id=supplier_id, shop_id=shop_id, data=data)
 
 
 # --- Export Routes ---
