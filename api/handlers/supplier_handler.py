@@ -159,26 +159,39 @@ class HandleSupplierRequest:
 
 
     async def delete(self,data:DeleteSupplierSchema):
-        res=await SupplierService(session=self.session).delete(data=data)
-        if not res:
+        try:
+            res=await SupplierService(session=self.session).delete(data=data)
+            if not res:
+                raise HTTPException(
+                    status_code=400,
+                    detail=ErrorResponseTypDict(
+                        msg="Error : Deleting supplier",
+                        description="Invalid supplier id for deleting supplier",
+                        status_code=400,
+                        success=False
+                    )
+                )
+            
+            return SuccessResponseTypDict(
+                detail=BaseResponseTypDict(
+                    msg="Supplier deleted successfully",
+                    status_code=200,
+                    success=True
+                ),
+                data=res if res else None
+            )
+        except HTTPException:
+            raise
+        except Exception as e:
             raise HTTPException(
                 status_code=400,
                 detail=ErrorResponseTypDict(
                     msg="Error : Deleting supplier",
-                    description="Invalid supplier id for deleting supplier",
+                    description=str(e),
                     status_code=400,
                     success=False
                 )
             )
-        
-        return SuccessResponseTypDict(
-            detail=BaseResponseTypDict(
-                msg="Supplier deleted successfully",
-                status_code=200,
-                success=True
-            ),
-            data=res if res else None
-        )
 
 
     async def get(self,data:GetAllSupplierSchema):

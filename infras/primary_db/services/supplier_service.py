@@ -1,3 +1,5 @@
+import os
+from sqlalchemy import delete
 from core.utils.user_context import get_activity_log_user_info
 from ..main import AsyncSession
 from ..repos.supplier_repo import SupplierRepo
@@ -315,10 +317,43 @@ class SupplierService:
 
     # @start_db_transaction
     async def delete(self,data:DeleteSupplierSchema)-> dict | None:
+        # 1. Fetch supplier to validate
         supplier_get_res=await self.supplier_repo_obj.getby_id(data=GetSupplierById(shop_id=data.shop_id,id=data.id))
         if not supplier_get_res:
             ic("The given supplier info doesnt exists")
             return False
+
+        # 2. Condition 1: Check outstanding balance
+        outst_infos = supplier_get_res.get("outstanding_infos") or {}
+        outst_amount = float(outst_infos.get("amount", 0.0) or 0.0)
+        if outst_amount > 0:
+            raise ValueError(f"Cannot delete supplier '{supplier_get_res.get('name', data.id)}' because they have an outstanding balance of ₹{outst_amount}. Outstanding balance must be cleared before deletion.")
+
+        # 3. Condition 2: Check if any purchases happened for this supplier
+        PURCHASE_SERVICE_URL = os.getenv("PURCHASE_SERVICE_URL", "http://127.0.0.1:8003")
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            try:
+                res_purchases = await client.get(f"{PURCHASE_SERVICE_URL}/purchases/by/supplier/{data.shop_id}/{data.id}?limit=1")
+                if res_purchases.status_code == 200:
+                    purchases_data = res_purchases.json()
+                    purchases_list = purchases_data.get("data", [])
+                    if isinstance(purchases_list, list) and len(purchases_list) > 0:
+                        raise ValueError(f"Cannot delete supplier '{supplier_get_res.get('name', data.id)}' because purchases are associated with this supplier.")
+                    elif isinstance(purchases_list, dict):
+                        datas = purchases_list.get("datas") or []
+                        if len(datas) > 0:
+                            raise ValueError(f"Cannot delete supplier '{supplier_get_res.get('name', data.id)}' because purchases are associated with this supplier.")
+            except ValueError:
+                raise
+            except Exception as e:
+                ic(f"Error checking purchases for supplier: {e}")
+
+        # 4. Clean up custom field values for this supplier
+        try:
+            from ..models.customfield_model import SupplierCustomFieldsValues
+            await self.session.execute(delete(SupplierCustomFieldsValues).where(SupplierCustomFieldsValues.supplier_id == data.id, SupplierCustomFieldsValues.shop_id == data.shop_id))
+        except Exception as e:
+            ic(f"Error cleaning up supplier custom fields values: {e}")
         
         final_data=DeleteSupplierDbSchema(**data.model_dump())
         res=await self.supplier_repo_obj.delete(data=final_data)
@@ -332,6 +367,7 @@ class SupplierService:
             )
 
             supp_name = supplier_get_res.get("name") or "Supplier"
+            effective_ui_id = supplier_get_res.get("ui_id", data.id)
 
             try:
                 from messaging.main import RabbitMQMessagingConfig
@@ -345,9 +381,9 @@ class SupplierService:
                         "service": "SUPPLIER",
                         "action": "DELETED",
                         "entity_type": "SUPPLIER",
-                        "entity_id": str(data.id),
+                        "entity_id": str(effective_ui_id),
                         "entity_name": str(supp_name),
-                        "description": f"Deleted Supplier {supp_name} ({data.id})",
+                        "description": f"Deleted Supplier {supp_name} ({effective_ui_id})",
                         "changes": []
                     },
                     headers={}
