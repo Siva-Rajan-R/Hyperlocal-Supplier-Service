@@ -350,7 +350,17 @@ class SupplierRepo:
 
         if exclude_cancel:
             canceled_ids = set()
-            # 1. Fetch from Mongo Read DB if available
+
+            # 1. Scan history records directly for cancellation notes to identify canceled entity_ids / invoice_nos
+            for r in records:
+                notes_lower = (r.notes or "").lower()
+                if "canceled purchase" in notes_lower or "cancelled purchase" in notes_lower or "cancel purchase" in notes_lower:
+                    if r.entity_id:
+                        canceled_ids.add(str(r.entity_id))
+                    if getattr(r, "invoice_no", None):
+                        canceled_ids.add(str(r.invoice_no))
+
+            # 2. Fetch from Mongo Read DB if available
             try:
                 from ..read_db import main as read_db_main
                 if getattr(read_db_main, "CLIENT", None):
@@ -359,7 +369,7 @@ class SupplierRepo:
                         {
                             "shop_id": shop_id,
                             "$or": [{"supplier_id": supplier_id}, {"supplier_infos.id": supplier_id}, {"supplier.supplier_id": supplier_id}],
-                            "status": "CANCELED"
+                            "status": {"$in": ["CANCELED", "canceled", "CANCELLED", "cancelled"]}
                         },
                         {"id": 1, "purchase_id": 1, "invoice_no": 1}
                     ).to_list(length=None)
@@ -370,7 +380,7 @@ class SupplierRepo:
             except Exception as e:
                 ic(f"Error checking Mongo for canceled purchases: {e}")
 
-            # 2. Check Purchase Service HTTP endpoint
+            # 3. Check Purchase Service HTTP endpoint
             try:
                 import os, httpx
                 purchase_service_url = os.getenv("PURCHASE_SERVICE_URL", "http://127.0.0.1:8003")
@@ -380,9 +390,10 @@ class SupplierRepo:
                         p_data = resp.json().get("data", [])
                         if isinstance(p_data, list):
                             for p in p_data:
-                                if p.get("id"): canceled_ids.add(str(p["id"]))
-                                if p.get("purchase_id"): canceled_ids.add(str(p["purchase_id"]))
-                                if p.get("invoice_no"): canceled_ids.add(str(p["invoice_no"]))
+                                if str(p.get("status", "")).upper() in ["CANCELED", "CANCELLED"]:
+                                    if p.get("id"): canceled_ids.add(str(p["id"]))
+                                    if p.get("purchase_id"): canceled_ids.add(str(p["purchase_id"]))
+                                    if p.get("invoice_no"): canceled_ids.add(str(p["invoice_no"]))
             except Exception as e:
                 ic(f"Error querying purchase service HTTP for canceled purchases: {e}")
 
