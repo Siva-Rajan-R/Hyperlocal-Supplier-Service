@@ -22,42 +22,65 @@ class HandleSupplierRequest:
         self.session=session
 
 
-    async def create(self,data:CreateSupplierSchema):
+    async def create(self, data: CreateSupplierSchema):
+        if not data.shop_id or not str(data.shop_id).strip():
+            raise HTTPException(
+                status_code=400,
+                detail=ErrorResponseTypDict(
+                    status_code=400,
+                    msg="Missing Shop ID",
+                    description="Shop ID is missing. Please select a valid shop.",
+                    success=False
+                )
+            )
+
+        if not data.name or not str(data.name).strip():
+            raise HTTPException(
+                status_code=400,
+                detail=ErrorResponseTypDict(
+                    status_code=400,
+                    msg="Missing Supplier Name",
+                    description="Supplier name is required and cannot be empty.",
+                    success=False
+                )
+            )
+
         if not data.contact_infos or (not data.contact_infos.email and not data.contact_infos.mobile_number):
             raise HTTPException(
                 status_code=400,
                 detail=ErrorResponseTypDict(
                     status_code=400,
-                    msg="Error Creating Supplier",
-                    description="Please provide a atleast one of the contact info (Email or Mobile number)",
+                    msg="Missing Contact Info",
+                    description="Please provide at least one contact method (Email or Mobile number) for the supplier.",
                     success=False
                 )
             )
 
-        if data.contact_person_infos and (not data.contact_person_infos.email and not data.contact_person_infos.mobile_number):
-            raise HTTPException(
-                status_code=400,
-                detail=ErrorResponseTypDict(
+        if data.contact_person_infos and (data.contact_person_infos.name or data.contact_person_infos.email or data.contact_person_infos.mobile_number):
+            if not data.contact_person_infos.email and not data.contact_person_infos.mobile_number:
+                raise HTTPException(
                     status_code=400,
-                    msg="Error Creating Supplier",
-                    description="Please provide a atleast one of the contact info (Email or Mobile number) for contact person",
-                    success=False
+                    detail=ErrorResponseTypDict(
+                        status_code=400,
+                        msg="Missing Contact Person Info",
+                        description="Please provide at least one contact method (Email or Mobile number) for the contact person.",
+                        success=False
+                    )
                 )
-            )
         
-        # for checking the custome fields
+        # for checking the custom fields
         defined_fields = await CustomFieldsService(session=self.session).get_field_by_shop_id(data=GetFieldByShopIdSchema(shop_id=data.shop_id))
         valid_custom_fields = validate_and_filter_custom_fields(payload_custom_fields=data.custom_fields, defined_custom_fields=defined_fields)
         ic(valid_custom_fields)
 
-        final_data = CreateSupplierSchema(custom_fields=valid_custom_fields,**data.model_dump(exclude=['custom_fields']))
-        res=await SupplierService(session=self.session).create(data=final_data)
+        final_data = CreateSupplierSchema(custom_fields=valid_custom_fields, **data.model_dump(exclude=['custom_fields']))
+        res = await SupplierService(session=self.session).create(data=final_data)
         if not res:
             raise HTTPException(
                 status_code=400,
                 detail=ErrorResponseTypDict(
-                    msg="Error : Creating supplier",
-                    description="Invalid datas for creating suppliers",
+                    msg="Error Creating Supplier",
+                    description="Failed to create supplier. Please verify the submitted data.",
                     status_code=400,
                     success=False
                 )

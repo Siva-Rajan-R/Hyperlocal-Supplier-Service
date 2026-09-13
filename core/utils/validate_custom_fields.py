@@ -10,31 +10,41 @@ def validate_and_filter_custom_fields(payload_custom_fields: Dict, defined_custo
     - Checks for missing required fields and raises HTTPException.
     - Filters out any fields in payload that are not defined.
     """
-    if not defined_custom_fields:
+    if not defined_custom_fields or not isinstance(defined_custom_fields, list):
         return {}
 
-    defined_fields_map = {field['field_name']: field for field in defined_custom_fields}
+    defined_by_name = {field['field_name']: field for field in defined_custom_fields if isinstance(field, dict) and 'field_name' in field}
+    defined_by_id = {field['id']: field for field in defined_custom_fields if isinstance(field, dict) and 'id' in field}
     payload_custom_fields = payload_custom_fields or {}
-    ic(defined_fields_map,payload_custom_fields)
+    ic(defined_by_name, defined_by_id, payload_custom_fields)
 
     # Check for required fields
-    for field_name, field_def in defined_fields_map.items():
-        if field_def.get('required') and field_name not in payload_custom_fields:
-            raise HTTPException(
-                status_code=400,
-                detail=ErrorResponseTypDict(
+    for field in defined_custom_fields:
+        if not isinstance(field, dict):
+            continue
+        if field.get('required'):
+            name = field.get('field_name')
+            fid = field.get('id')
+            val = payload_custom_fields.get(name) or payload_custom_fields.get(fid)
+            if val is None or (isinstance(val, str) and not val.strip()):
+                label = field.get('label_name') or name or "Custom Field"
+                raise HTTPException(
                     status_code=400,
-                    msg="Missing Required Custom Field",
-                    description=f"The custom field '{field_name}' is required.",
-                    success=False
+                    detail=ErrorResponseTypDict(
+                        status_code=400,
+                        msg="Missing Required Custom Field",
+                        description=f"The custom field '{label}' is required.",
+                        success=False
+                    )
                 )
-            )
 
     # Filter out unknown fields and build valid custom fields
     valid_custom_fields = {}
-    
     for key, value in payload_custom_fields.items():
-        if key in defined_fields_map:
-            valid_custom_fields[defined_fields_map[key]['id']] = value
+        if key in defined_by_id:
+            valid_custom_fields[key] = value
+        elif key in defined_by_name:
+            valid_custom_fields[defined_by_name[key]['id']] = value
+            
     ic(valid_custom_fields)
     return valid_custom_fields

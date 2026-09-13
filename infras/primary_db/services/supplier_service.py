@@ -76,8 +76,25 @@ class SupplierService:
             )
             existing_sup = (await self.session.execute(stmt)).scalars().first()
             if existing_sup:
-                ic(f"Supplier with email {email} or mobile {mobile_number} already exists, skipping...")
-                return None
+                existing_email = existing_sup.contact_infos.get('email') if existing_sup.contact_infos else None
+                existing_mobile = existing_sup.contact_infos.get('mobile_number') if existing_sup.contact_infos else None
+                
+                conflict_reasons = []
+                if email and existing_email == email:
+                    conflict_reasons.append(f"email '{email}'")
+                if mobile_number and existing_mobile == mobile_number:
+                    conflict_reasons.append(f"mobile number '{mobile_number}'")
+                
+                conflict_text = " and ".join(conflict_reasons) if conflict_reasons else "email or mobile number"
+                raise HTTPException(
+                    status_code=400,
+                    detail=ErrorResponseTypDict(
+                        msg="Duplicate Supplier",
+                        description=f"A supplier with {conflict_text} already exists in this shop ({existing_sup.name}).",
+                        status_code=400,
+                        success=False
+                    )
+                )
 
         supplier_id:str=generate_uuid()
         ui_id = None
