@@ -47,6 +47,7 @@ class UpdateOutstandingSupplierSchema(BaseModel):
     outstanding_amount: Optional[float] = None
     cleared_amount: Optional[float] = None
     clear_entity_history: Optional[bool] = False
+    from_purchase_service: Optional[bool] = False
 
 
 

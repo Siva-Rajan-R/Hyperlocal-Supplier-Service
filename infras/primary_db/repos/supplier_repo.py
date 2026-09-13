@@ -102,21 +102,27 @@ class SupplierRepo:
                 ic("Successfully deleted supplier outstanding history records for entity:", data.entity_id)
             except Exception as ex:
                 ic("Error deleting supplier outstanding history:", ex)
-        elif getattr(data, "entity_name", None) and getattr(data, "entity_id", None):
+        elif not getattr(data, "clear_entity_history", False) and (
+            getattr(data, "entity_id", None) or 
+            getattr(data, "entity_name", None) or 
+            (data.cleared_amount is not None and data.cleared_amount > 0) or
+            getattr(data, "type", None) == SupplierOutstandingUpdateTypeEnums.DECREMENT
+        ):
             try:
                 from ..models.supplier_model import SupplierOutstandingHistory
                 import uuid
+                cl_amt = data.cleared_amount if data.cleared_amount is not None else (data.outstanding_infos.amount if data.outstanding_infos else 0.0)
                 history_record = SupplierOutstandingHistory(
                     id=str(uuid.uuid4()),
                     supplier_id=data.id,
                     shop_id=data.shop_id,
-                    cleared_amount=data.cleared_amount if data.cleared_amount is not None else 0.0,
+                    cleared_amount=cl_amt,
                     outstanding_amount=data.outstanding_amount if data.outstanding_amount is not None else (data.outstanding_infos.amount if data.outstanding_infos else 0.0),
-                    payment_method=getattr(data, "payment_method", "N/A") or "N/A",
-                    entity_name=data.entity_name,
-                    entity_id=data.entity_id,
+                    payment_method=getattr(data, "payment_method", "CASH") or "CASH",
+                    entity_name=getattr(data, "entity_name", "PURCHASE") or "PURCHASE",
+                    entity_id=getattr(data, "entity_id", None),
                     invoice_no=getattr(data, "invoice_no", None),
-                    notes=getattr(data, "notes", None) or f"Cleared outstanding for {data.entity_name}"
+                    notes=getattr(data, "notes", None) or f"Cleared outstanding of ₹{cl_amt}"
                 )
                 self.session.add(history_record)
                 await self.session.flush()

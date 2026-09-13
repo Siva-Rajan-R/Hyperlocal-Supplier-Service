@@ -487,25 +487,48 @@ class SupplierService:
             except Exception as e:
                 ic(f"Failed to publish analytics event on supplier update_outstanding: {e}")
 
+        # Sync payment to Purchase Service if this update is for a purchase and didn't originate from purchase service
+        if getattr(data, "entity_id", None) and not getattr(data, "from_purchase_service", False):
+            ent_name = str(getattr(data, "entity_name", "PURCHASE") or "PURCHASE").upper()
+            if ent_name == "PURCHASE":
+                try:
+                    import os, httpx
+                    PURCHASE_SERVICE_URL = os.getenv("PURCHASE_SERVICE_URL", "http://127.0.0.1:8003")
+                    pay_amt = data.cleared_amount if data.cleared_amount is not None else data.outstanding_infos.amount
+                    async with httpx.AsyncClient(timeout=5.0) as client:
+                        sync_res = await client.put(
+                            f"{PURCHASE_SERVICE_URL}/purchases/payment",
+                            json={
+                                "purchase_id": data.entity_id,
+                                "shop_id": data.shop_id,
+                                "amount": float(pay_amt),
+                                "payment_method": getattr(data, "payment_method", "CASH") or "CASH",
+                                "notes": getattr(data, "notes", "") or "",
+                                "invoice_no": getattr(data, "invoice_no", "") or "",
+                                "supplier_id": data.id,
+                                "from_supplier_service": True
+                            }
+                        )
+                        ic(f"Purchase payment sync result: {sync_res.status_code}")
+                except Exception as e:
+                    ic(f"Failed to sync payment to purchase service: {e}")
+
         await self.session.commit()
         return res
     
 
-
-
-    async def get(self,data:GetAllSupplierSchema)-> dict:
-        res=await self.supplier_repo_obj.get(data=data)
+    async def get(self, data: GetAllSupplierSchema) -> dict:
+        res = await self.supplier_repo_obj.get(data=data)
         return res
 
-
-    async def getby_id(self,data:GetSupplierById)-> dict | None:
-        res=await self.supplier_repo_obj.getby_id(data=data)
+    async def getby_id(self, data: GetSupplierById) -> dict | None:
+        res = await self.supplier_repo_obj.getby_id(data=data)
         if res:
             res = dict(res)
         return res
     
-    async def getby_shop_id(self,data:GetSupplierByShopIdSchema)-> dict:
-        res=await self.supplier_repo_obj.getby_shop_id(data=data)
+    async def getby_shop_id(self, data: GetSupplierByShopIdSchema) -> dict:
+        res = await self.supplier_repo_obj.getby_shop_id(data=data)
         return res
 
     async def get_outstanding_history(self, supplier_id: str, shop_id: str, data: Optional[GetSupplierOutstandingHistorySchema] = None):
