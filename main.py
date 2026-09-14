@@ -19,14 +19,17 @@ async def supplier_service_lifespan(app:FastAPI):
         await init_pg_db()
         await init_read_db()
         print("[SUPPLIER SERVICE] ✅ Database & Read DB initialized. Ready for background tasks & exports.")
-        asyncio.create_task(worker())
+        app.state.worker_task = asyncio.create_task(worker())
         yield
 
     except Exception as e:
         ic(f"Error : Starting supplier service => {e}")
 
     finally:
-        ic("...Stoping supplier Servcie...")
+        ic("...Stopping supplier Service...")
+        if hasattr(app.state, "worker_task") and app.state.worker_task:
+            app.state.worker_task.cancel()
+            await asyncio.gather(app.state.worker_task, return_exceptions=True)
 
 debug=False
 openapi_url=None
