@@ -368,7 +368,7 @@ class SupplierRepo:
 
             # 2. Fetch from Mongo Read DB if available
             try:
-                from ..read_db import main as read_db_main
+                from infras.read_db import main as read_db_main
                 if getattr(read_db_main, "CLIENT", None):
                     pur_coll = read_db_main.CLIENT['PurchaseServiceReadDb']['PurchaseCollections']
                     canceled_docs = await pur_coll.find(
