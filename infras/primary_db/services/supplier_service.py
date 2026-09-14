@@ -504,29 +504,35 @@ class SupplierService:
             except Exception as e:
                 ic(f"Failed to publish analytics event on supplier update_outstanding: {e}")
 
-        # Sync payment to Purchase Service if this update is for a purchase and didn't originate from purchase service
-        if getattr(data, "entity_id", None) and not getattr(data, "from_purchase_service", False):
+        # Sync payment to Purchase Service ONLY if this update is a payment (DECREMENT) initiated from Supplier Service
+        if (
+            getattr(data, "entity_id", None)
+            and not getattr(data, "from_purchase_service", False)
+            and getattr(data, "type", None) == SupplierOutstandingUpdateTypeEnums.DECREMENT
+            and not getattr(data, "clear_entity_history", False)
+        ):
             ent_name = str(getattr(data, "entity_name", "PURCHASE") or "PURCHASE").upper()
             if ent_name == "PURCHASE":
                 try:
                     import os, httpx
                     PURCHASE_SERVICE_URL = os.getenv("PURCHASE_SERVICE_URL", "http://127.0.0.1:8003")
                     pay_amt = data.cleared_amount if data.cleared_amount is not None else data.outstanding_infos.amount
-                    async with httpx.AsyncClient(timeout=5.0) as client:
-                        sync_res = await client.put(
-                            f"{PURCHASE_SERVICE_URL}/purchases/payment",
-                            json={
-                                "purchase_id": data.entity_id,
-                                "shop_id": data.shop_id,
-                                "amount": float(pay_amt),
-                                "payment_method": getattr(data, "payment_method", "CASH") or "CASH",
-                                "notes": getattr(data, "notes", "") or "",
-                                "invoice_no": getattr(data, "invoice_no", "") or "",
-                                "supplier_id": data.id,
-                                "from_supplier_service": True
-                            }
-                        )
-                        ic(f"Purchase payment sync result: {sync_res.status_code}")
+                    if pay_amt and float(pay_amt) > 0:
+                        async with httpx.AsyncClient(timeout=5.0) as client:
+                            sync_res = await client.put(
+                                f"{PURCHASE_SERVICE_URL}/purchases/payment",
+                                json={
+                                    "purchase_id": data.entity_id,
+                                    "shop_id": data.shop_id,
+                                    "amount": float(pay_amt),
+                                    "payment_method": getattr(data, "payment_method", "CASH") or "CASH",
+                                    "notes": getattr(data, "notes", "") or "",
+                                    "invoice_no": getattr(data, "invoice_no", "") or "",
+                                    "supplier_id": data.id,
+                                    "from_supplier_service": True
+                                }
+                            )
+                            ic(f"Purchase payment sync result: {sync_res.status_code}")
                 except Exception as e:
                     ic(f"Failed to sync payment to purchase service: {e}")
 
