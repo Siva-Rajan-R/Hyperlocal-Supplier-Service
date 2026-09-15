@@ -56,7 +56,7 @@ class UpdateOutstandingSupplierSchema(BaseModel):
 
 class GetAllSupplierSchema(BaseModel):
     query:str=Field(default="",alias='q')
-    limit:int=Field(default=10,le=100)
+    limit:int=Field(default=10,le=1000)
     offset:int=Field(default=1)
     from_date:Optional[str]=None
     to_date:Optional[str]=None
@@ -74,7 +74,7 @@ class GetAllSupplierSchema(BaseModel):
 class GetSupplierByShopIdSchema(BaseModel):
     shop_id:str
     query:str=Field(default="",alias='q')
-    limit:int=Field(default=10,le=100)
+    limit:int=Field(default=10,le=1000)
     offset:int=Field(default=1)
     from_date:Optional[str]=None
     to_date:Optional[str]=None
