@@ -112,6 +112,14 @@ class SupplierRepo:
                 from ..models.supplier_model import SupplierOutstandingHistory
                 import uuid
                 cl_amt = data.cleared_amount if data.cleared_amount is not None else (data.outstanding_infos.amount if data.outstanding_infos else 0.0)
+                if (cl_amt is None or cl_amt == 0) and getattr(data, "notes", None):
+                    import re
+                    match = re.search(r'(?:reduced by|correction of|cleared of|payment of|Refund amount:\s*)\s*(?:₹|INR)?\s*([0-9.]+)', str(data.notes), re.IGNORECASE)
+                    if match:
+                        try:
+                            cl_amt = float(match.group(1))
+                        except Exception:
+                            pass
                 history_record = SupplierOutstandingHistory(
                     id=str(uuid.uuid4()),
                     supplier_id=data.id,
@@ -419,12 +427,27 @@ class SupplierRepo:
             offset = max(data.offset - 1, 0) if data.offset else 0
             records = records[offset:offset + data.limit]
 
+        import re
+
+        def _resolve_cleared_amount(rec):
+            amt = rec.cleared_amount
+            if amt is not None and float(amt) > 0:
+                return float(amt)
+            if rec.notes:
+                match = re.search(r'(?:reduced by|correction of|cleared of|payment of|Refund amount:\s*)\s*(?:₹|INR)?\s*([0-9.]+)', str(rec.notes), re.IGNORECASE)
+                if match:
+                    try:
+                        return float(match.group(1))
+                    except Exception:
+                        pass
+            return float(amt or 0.0)
+
         return [
             {
                 "id": r.id,
                 "supplier_id": r.supplier_id,
                 "shop_id": r.shop_id,
-                "cleared_amount": r.cleared_amount,
+                "cleared_amount": _resolve_cleared_amount(r),
                 "outstanding_amount": r.outstanding_amount,
                 "payment_method": r.payment_method,
                 "entity_name": r.entity_name,
