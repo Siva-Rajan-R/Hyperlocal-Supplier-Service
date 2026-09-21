@@ -18,7 +18,7 @@ async def supplier_service_lifespan(app:FastAPI):
         ic("Starting supplier service...")
         await init_pg_db()
         await init_read_db()
-        print("[SUPPLIER SERVICE] ✅ Database & Read DB initialized. Ready for background tasks & exports.")
+        print("[SUPPLIER SERVICE] [OK] Database & Read DB initialized. Ready for background tasks & exports.")
         app.state.worker_task = asyncio.create_task(worker())
         yield
 
