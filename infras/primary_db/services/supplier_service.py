@@ -449,7 +449,7 @@ class SupplierService:
             cur_outst_amt=max(0.0, prev_outst_amt - data.outstanding_infos.amount)
         
         original_cleared_amt = data.cleared_amount if data.cleared_amount is not None else data.outstanding_infos.amount
-        outst_amt_for_history = data.outstanding_amount if data.outstanding_amount is not None else cur_outst_amt
+        outst_amt_for_history = data.outstanding_amount if data.outstanding_amount is not None else (data.outstanding_infos.amount if data.type == SupplierOutstandingUpdateTypeEnums.INCREMENT else cur_outst_amt)
 
         updated_outstanding_infos = SupplierOutstandingInfosType(amount=cur_outst_amt)
 
