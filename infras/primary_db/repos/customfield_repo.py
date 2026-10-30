@@ -137,9 +137,12 @@ class CustomFieldsRepo:
         return True
 
         
-    async def get_values_by_supplier_id(self, data:GetvaluesByCustomerId) -> List[dict]:
+    async def get_values_by_supplier_id(self, data:GetvaluesByCustomerId, supplier_uuid: Optional[str] = None) -> List[dict]:
+        ids_to_check = {str(data.id)}
+        if supplier_uuid:
+            ids_to_check.add(str(supplier_uuid))
         stmt = select(SupplierCustomFieldsValues).where(
-            SupplierCustomFieldsValues.supplier_id == data.id,
+            SupplierCustomFieldsValues.supplier_id.in_(list(ids_to_check)),
             SupplierCustomFieldsValues.shop_id == data.shop_id
         )
         res = (await self.session.execute(stmt)).scalars().all()

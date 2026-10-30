@@ -247,13 +247,62 @@ class SupplierService:
             contact_person_infos=merged_contact_person if merged_contact_person else (existing_contact_person if existing_contact_person else None)
         )
 
+        supplier_uuid = str(supplier_get_res.get("id") or data.id)
+        effective_ui_id = supplier_get_res.get("ui_id") or getattr(data, "ui_id", None) or str(data.id)
+        supp_name = supplier_get_res.get("name") or getattr(data, "name", None) or "Supplier"
+
+        # Fetch existing custom field values before update
+        old_cf_dict = {}
+        id_to_name = {}
+        field_types = {}
+        try:
+            from infras.primary_db.repos.customfield_repo import CustomFieldsRepo
+            from schemas.v1.db_schemas.customfield_schema import GetFieldByShopIdSchema, GetvaluesByCustomerId
+            defined_fields = await CustomFieldsRepo(session=self.session).get_fields_by_shop_id(
+                data=GetFieldByShopIdSchema(shop_id=data.shop_id)
+            )
+            for f in (defined_fields or []):
+                if isinstance(f, dict):
+                    fid = str(f.get("id", "")).strip()
+                    fname = str(f.get("field_name", "")).strip()
+                    flbl = str(f.get("label_name") or f.get("field_name") or fid).strip()
+                    ftype = str(f.get("type", "")).strip().lower()
+                    if fid:
+                        id_to_name[fid] = flbl
+                        id_to_name[fid.lower()] = flbl
+                        field_types[fid] = ftype
+                        field_types[fid.lower()] = ftype
+                    if fname:
+                        id_to_name[fname] = flbl
+                        id_to_name[fname.lower()] = flbl
+                        field_types[fname] = ftype
+                        field_types[fname.lower()] = ftype
+                    id_to_name[flbl] = flbl
+                    id_to_name[flbl.lower()] = flbl
+
+            old_cf_raw = await CustomFieldsRepo(session=self.session).get_values_by_supplier_id(
+                data=GetvaluesByCustomerId(id=data.id, shop_id=data.shop_id),
+                supplier_uuid=supplier_uuid
+            )
+            for item in (old_cf_raw or []):
+                fid = str(item.get("field_id", "")).strip()
+                val = item.get("value")
+                label = id_to_name.get(fid) or id_to_name.get(fid.lower()) or fid
+                ft = field_types.get(fid) or field_types.get(fid.lower())
+                if ft in ("bool", "boolean") or str(val).lower() in ("true", "false"):
+                    if str(val).lower() == "true": val = "Yes"
+                    elif str(val).lower() == "false": val = "No"
+                old_cf_dict[label] = val
+        except Exception as e:
+            ic(f"Error fetching existing custom fields for supplier: {e}")
+
         res=await self.supplier_repo_obj.update(data=final_data) 
         if res:
             if data.custom_fields:
                 cust_obj=await CustomFieldsService(session=self.session).upsert_values(
                 data=CreateCustomFieldValueSchema(
                         shop_id=data.shop_id,
-                        supplier_id=data.id,
+                        supplier_id=supplier_uuid,
                         value_infos=[
                             {'field_id':id,"value":value}
                             for id,value in data.custom_fields.items()
@@ -275,6 +324,30 @@ class SupplierService:
                 changes = []
                 for key, new_val in dumped_updates.items():
                     if key in ["id", "shop_id", "user_id", "cur_user_id"]:
+                        continue
+                    if key == "custom_fields":
+                        new_cf_dict = {}
+                        if isinstance(new_val, dict):
+                            for fid_or_name, val in new_val.items():
+                                k_str = str(fid_or_name).strip()
+                                label = id_to_name.get(k_str) or id_to_name.get(k_str.lower()) or k_str
+                                ft = field_types.get(k_str) or field_types.get(k_str.lower())
+                                if ft in ("bool", "boolean") or str(val).lower() in ("true", "false"):
+                                    if str(val).lower() == "true": val = "Yes"
+                                    elif str(val).lower() == "false": val = "No"
+                                new_cf_dict[label] = val
+                        all_cf_keys = set(old_cf_dict.keys()) | set(new_cf_dict.keys())
+                        for cf_k in all_cf_keys:
+                            cf_prev = old_cf_dict.get(cf_k)
+                            cf_new = new_cf_dict.get(cf_k)
+                            if _is_empty_or_none(cf_prev) and _is_empty_or_none(cf_new):
+                                continue
+                            if str(cf_prev).strip() != str(cf_new).strip():
+                                changes.append({
+                                    "field": cf_k,
+                                    "before": str(cf_prev) if cf_prev is not None else "None",
+                                    "after": str(cf_new) if cf_new is not None else "None"
+                                })
                         continue
                     prev_val = supplier_get_res.get(key)
                     if _is_empty_or_none(prev_val) and _is_empty_or_none(new_val):
@@ -300,7 +373,7 @@ class SupplierService:
                         "entity_type": "SUPPLIER",
                         "entity_id": str(effective_ui_id),
                         "entity_name": str(supp_name),
-                        "description": f"Updated Supplier {supp_name} ({effective_ui_id})",
+                        "description": f"Updated {', '.join(c['field'].replace('_', ' ') for c in changes)}" if changes else f"Updated Supplier {supp_name} ({effective_ui_id})",
                         "changes": changes
                     },
                     headers={}
