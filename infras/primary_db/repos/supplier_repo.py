@@ -199,6 +199,27 @@ class SupplierRepo:
             except Exception:
                 pass
 
+        if getattr(data, 'type', None) and str(data.type).strip() and str(data.type).strip().lower() != 'all':
+            target_type = str(data.type).strip().lower()
+            conds.append(or_(
+                func.lower(Suppliers.additional_infos['type'].astext) == target_type,
+                func.lower(Suppliers.contact_infos['type'].astext) == target_type,
+                func.lower(Suppliers.contact_person_infos['type'].astext) == target_type
+            ))
+
+        if getattr(data, 'city', None) and str(data.city).strip() and str(data.city).strip().lower() != 'all':
+            target_city = str(data.city).strip().lower()
+            conds.append(or_(
+                func.lower(Suppliers.location_infos['city'].astext) == target_city,
+                func.lower(Suppliers.additional_infos['city'].astext) == target_city
+            ))
+
+        if getattr(data, 'state', None) and str(data.state).strip() and str(data.state).strip().lower() != 'all':
+            target_state = str(data.state).strip().lower()
+            conds.append(
+                func.lower(Suppliers.location_infos['state'].astext) == target_state
+            )
+
         # Outstanding filter & exclusion handling
         from sqlalchemy import Float, literal
         amount_expr = func.coalesce(func.cast(Suppliers.outstanding_infos['amount'].astext, Float), 0.0)
@@ -273,6 +294,27 @@ class SupplierRepo:
                 conds.append(Suppliers.created_at <= to_dt)
             except Exception:
                 pass
+
+        if getattr(data, 'type', None) and str(data.type).strip() and str(data.type).strip().lower() != 'all':
+            target_type = str(data.type).strip().lower()
+            conds.append(or_(
+                func.lower(Suppliers.additional_infos['type'].astext) == target_type,
+                func.lower(Suppliers.contact_infos['type'].astext) == target_type,
+                func.lower(Suppliers.contact_person_infos['type'].astext) == target_type
+            ))
+
+        if getattr(data, 'city', None) and str(data.city).strip() and str(data.city).strip().lower() != 'all':
+            target_city = str(data.city).strip().lower()
+            conds.append(or_(
+                func.lower(Suppliers.location_infos['city'].astext) == target_city,
+                func.lower(Suppliers.additional_infos['city'].astext) == target_city
+            ))
+
+        if getattr(data, 'state', None) and str(data.state).strip() and str(data.state).strip().lower() != 'all':
+            target_state = str(data.state).strip().lower()
+            conds.append(
+                func.lower(Suppliers.location_infos['state'].astext) == target_state
+            )
 
         # Outstanding filter & exclusion handling
         from sqlalchemy import Float, literal

@@ -218,6 +218,7 @@ class SupplierService:
         existing_location = supplier_get_res.get("location_infos") or {}
         existing_contact = supplier_get_res.get("contact_infos") or {}
         existing_contact_person = supplier_get_res.get("contact_person_infos") or {}
+        existing_additional = supplier_get_res.get("additional_infos") or {}
 
         # Merge new attributes into database objects
         merged_location = None
@@ -225,10 +226,27 @@ class SupplierService:
             new_loc_dict = data.location_infos.model_dump(exclude_unset=True, exclude_none=True) if hasattr(data.location_infos, 'model_dump') else data.location_infos
             merged_location = {**existing_location, **new_loc_dict}
 
+        merged_additional = None
+        if data.additional_infos is not None:
+            new_add_dict = data.additional_infos if isinstance(data.additional_infos, dict) else (data.additional_infos.model_dump(exclude_unset=True, exclude_none=True) if hasattr(data.additional_infos, 'model_dump') else data.additional_infos)
+            merged_additional = {**existing_additional, **new_add_dict}
+        else:
+            merged_additional = existing_additional
+
         merged_contact = None
         if data.contact_infos is not None:
             new_contact_dict = data.contact_infos.model_dump(exclude_unset=True, exclude_none=True) if hasattr(data.contact_infos, 'model_dump') else data.contact_infos
             merged_contact = {**existing_contact, **new_contact_dict}
+        elif existing_contact:
+            merged_contact = {**existing_contact}
+
+        # Keep type synced if provided
+        sup_type = (merged_additional or {}).get("type") or (merged_contact or {}).get("type")
+        if sup_type:
+            if merged_additional is not None:
+                merged_additional["type"] = sup_type
+            if merged_contact is not None:
+                merged_contact["type"] = sup_type
 
         merged_contact_person = None
         if data.contact_person_infos is not None:
@@ -241,7 +259,7 @@ class SupplierService:
             shop_id=data.shop_id,
             name=data.name if data.name is not None else supplier_get_res.get("name"),
             gst_no=data.gst_no if data.gst_no is not None else supplier_get_res.get("gst_no"),
-            additional_infos=data.additional_infos if data.additional_infos is not None else supplier_get_res.get("additional_infos"),
+            additional_infos=merged_additional if merged_additional else (existing_additional if existing_additional else None),
             location_infos=merged_location if merged_location else (existing_location if existing_location else None),
             contact_infos=merged_contact if merged_contact else (existing_contact if existing_contact else None),
             contact_person_infos=merged_contact_person if merged_contact_person else (existing_contact_person if existing_contact_person else None)
@@ -512,17 +530,89 @@ class SupplierService:
             ic("The give supplier doesn't exists")
             return False
         
-        prev_outst_amt=supplier_get_res.get('outstanding_infos').get("amount",0) if supplier_get_res.get('outstanding_infos') else 0
-        cur_outst_amt=data.outstanding_infos.amount
+        prev_outst_amt = float(supplier_get_res.get('outstanding_infos', {}).get("amount", 0) if supplier_get_res.get('outstanding_infos') else 0)
+        pay_amount = float(data.cleared_amount if data.cleared_amount is not None else data.outstanding_infos.amount)
+        cur_outst_amt = data.outstanding_infos.amount
 
-        if data.type==SupplierOutstandingUpdateTypeEnums.INCREMENT:
-            cur_outst_amt=cur_outst_amt+prev_outst_amt
-        
-        elif data.type==SupplierOutstandingUpdateTypeEnums.DECREMENT:
-            cur_outst_amt=max(0.0, prev_outst_amt - data.outstanding_infos.amount)
-        
-        original_cleared_amt = data.cleared_amount if data.cleared_amount is not None else data.outstanding_infos.amount
-        outst_amt_for_history = data.outstanding_amount if data.outstanding_amount is not None else (data.outstanding_infos.amount if data.type == SupplierOutstandingUpdateTypeEnums.INCREMENT else cur_outst_amt)
+        if data.type == SupplierOutstandingUpdateTypeEnums.INCREMENT:
+            cur_outst_amt = cur_outst_amt + prev_outst_amt
+        elif data.type == SupplierOutstandingUpdateTypeEnums.DECREMENT:
+            if pay_amount <= 0:
+                raise HTTPException(status_code=400, detail="Payment amount must be greater than 0")
+            if pay_amount > prev_outst_amt + 0.01:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Payment amount (₹{pay_amount:,.2f}) cannot exceed supplier outstanding balance (₹{prev_outst_amt:,.2f})"
+                )
+            cur_outst_amt = max(0.0, prev_outst_amt - pay_amount)
+
+        # If paying against a specific Purchase, validate and sync payment to Purchase Service FIRST
+        if (
+            getattr(data, "entity_id", None)
+            and not getattr(data, "from_purchase_service", False)
+            and getattr(data, "type", None) == SupplierOutstandingUpdateTypeEnums.DECREMENT
+            and not getattr(data, "clear_entity_history", False)
+        ):
+            ent_name = str(getattr(data, "entity_name", "PURCHASE") or "PURCHASE").upper()
+            if ent_name == "PURCHASE":
+                PURCHASE_SERVICE_URL = os.getenv("PURCHASE_SERVICE_URL", "http://127.0.0.1:8003")
+                if pay_amount > 0:
+                    try:
+                        async with httpx.AsyncClient(timeout=5.0) as client:
+                            sync_res = await client.put(
+                                f"{PURCHASE_SERVICE_URL}/purchases/payment",
+                                json={
+                                    "purchase_id": data.entity_id,
+                                    "shop_id": data.shop_id,
+                                    "amount": float(pay_amount),
+                                    "payment_method": getattr(data, "payment_method", "CASH") or "CASH",
+                                    "notes": getattr(data, "notes", "") or "",
+                                    "invoice_no": getattr(data, "invoice_no", "") or "",
+                                    "supplier_id": data.id,
+                                    "from_supplier_service": True
+                                }
+                            )
+                            if sync_res.status_code >= 400:
+                                err_msg = "Failed to record payment on purchase"
+                                try:
+                                    err_json = sync_res.json()
+                                    detail_val = err_json.get("detail")
+                                    if isinstance(detail_val, dict):
+                                        err_msg = detail_val.get("description") or detail_val.get("msg") or str(detail_val)
+                                    elif isinstance(detail_val, str) and detail_val.strip():
+                                        err_msg = detail_val.strip()
+                                    elif err_json.get("description"):
+                                        err_msg = err_json.get("description")
+                                    elif err_json.get("msg"):
+                                        err_msg = err_json.get("msg")
+                                except Exception:
+                                    pass
+                                raise HTTPException(status_code=400, detail=str(err_msg))
+                    except HTTPException:
+                        raise
+                    except Exception as e:
+                        ic(f"Failed to sync payment to purchase service: {e}")
+                        raise HTTPException(status_code=400, detail=f"Failed to sync payment with purchase: {str(e)}")
+
+        original_cleared_amt = pay_amount
+        pur_outstanding_from_sync = None
+        if 'sync_res' in locals() and hasattr(sync_res, 'status_code') and sync_res.status_code == 200:
+            try:
+                pur_json = sync_res.json()
+                if isinstance(pur_json, dict) and "outstanding_amount" in pur_json:
+                    pur_outstanding_from_sync = float(pur_json["outstanding_amount"])
+            except Exception:
+                pass
+
+        outst_amt_for_history = (
+            data.outstanding_amount
+            if data.outstanding_amount is not None
+            else (
+                pur_outstanding_from_sync
+                if pur_outstanding_from_sync is not None
+                else (data.outstanding_infos.amount if data.type == SupplierOutstandingUpdateTypeEnums.INCREMENT else cur_outst_amt)
+            )
+        )
 
         updated_outstanding_infos = SupplierOutstandingInfosType(amount=cur_outst_amt)
 
@@ -576,38 +666,6 @@ class SupplierService:
                 )
             except Exception as e:
                 ic(f"Failed to publish analytics event on supplier update_outstanding: {e}")
-
-        # Sync payment to Purchase Service ONLY if this update is a payment (DECREMENT) initiated from Supplier Service
-        if (
-            getattr(data, "entity_id", None)
-            and not getattr(data, "from_purchase_service", False)
-            and getattr(data, "type", None) == SupplierOutstandingUpdateTypeEnums.DECREMENT
-            and not getattr(data, "clear_entity_history", False)
-        ):
-            ent_name = str(getattr(data, "entity_name", "PURCHASE") or "PURCHASE").upper()
-            if ent_name == "PURCHASE":
-                try:
-                    import os, httpx
-                    PURCHASE_SERVICE_URL = os.getenv("PURCHASE_SERVICE_URL", "http://127.0.0.1:8003")
-                    pay_amt = data.cleared_amount if data.cleared_amount is not None else data.outstanding_infos.amount
-                    if pay_amt and float(pay_amt) > 0:
-                        async with httpx.AsyncClient(timeout=5.0) as client:
-                            sync_res = await client.put(
-                                f"{PURCHASE_SERVICE_URL}/purchases/payment",
-                                json={
-                                    "purchase_id": data.entity_id,
-                                    "shop_id": data.shop_id,
-                                    "amount": float(pay_amt),
-                                    "payment_method": getattr(data, "payment_method", "CASH") or "CASH",
-                                    "notes": getattr(data, "notes", "") or "",
-                                    "invoice_no": getattr(data, "invoice_no", "") or "",
-                                    "supplier_id": data.id,
-                                    "from_supplier_service": True
-                                }
-                            )
-                            ic(f"Purchase payment sync result: {sync_res.status_code}")
-                except Exception as e:
-                    ic(f"Failed to sync payment to purchase service: {e}")
 
         await self.session.commit()
         return res
