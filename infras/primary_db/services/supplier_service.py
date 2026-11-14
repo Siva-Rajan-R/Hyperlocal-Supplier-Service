@@ -534,12 +534,19 @@ class SupplierService:
         pay_amount = float(data.cleared_amount if data.cleared_amount is not None else data.outstanding_infos.amount)
         cur_outst_amt = data.outstanding_infos.amount
 
+        is_purchase_return = (
+            str(getattr(data, "entity_name", "") or "").lower() in ["purchase_return", "purchase-return", "purchasereturn", "refund"]
+            or "return" in str(getattr(data, "notes", "") or "").lower()
+            or "refund" in str(getattr(data, "notes", "") or "").lower()
+            or "refund" in str(getattr(data, "payment_method", "") or "").lower()
+        )
+
         if data.type == SupplierOutstandingUpdateTypeEnums.INCREMENT:
             cur_outst_amt = cur_outst_amt + prev_outst_amt
         elif data.type == SupplierOutstandingUpdateTypeEnums.DECREMENT:
-            if pay_amount <= 0:
+            if pay_amount <= 0 and not is_purchase_return:
                 raise HTTPException(status_code=400, detail="Payment amount must be greater than 0")
-            if pay_amount > prev_outst_amt + 0.01:
+            if not is_purchase_return and pay_amount > prev_outst_amt + 0.01:
                 raise HTTPException(
                     status_code=400,
                     detail=f"Payment amount (₹{pay_amount:,.2f}) cannot exceed supplier outstanding balance (₹{prev_outst_amt:,.2f})"
@@ -628,7 +635,7 @@ class SupplierService:
         ic(res)
 
         if res:
-            total_outst=data.outstanding_infos.amount
+            total_outst = min(pay_amount, prev_outst_amt) if is_purchase_return else data.outstanding_infos.amount
             ic(total_outst)
             if data.type==SupplierOutstandingUpdateTypeEnums.DECREMENT:
                 total_outst=-total_outst

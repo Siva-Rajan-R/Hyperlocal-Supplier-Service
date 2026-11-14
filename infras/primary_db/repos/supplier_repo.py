@@ -484,6 +484,16 @@ class SupplierRepo:
                         pass
             return float(amt or 0.0)
 
+        def _resolve_type(rec):
+            ent = str(rec.entity_name or "").lower()
+            notes = str(rec.notes or "").lower()
+            meth = str(rec.payment_method or "").lower()
+            if ent in ["purchase_return", "purchase-return", "purchasereturn", "refund"] or "return" in notes or "refund" in notes or "refund" in meth:
+                return "PURCHASE_RETURN"
+            if rec.cleared_amount and float(rec.cleared_amount) > 0:
+                return "DECREMENT"
+            return "INCREMENT"
+
         return [
             {
                 "id": r.id,
@@ -495,8 +505,10 @@ class SupplierRepo:
                 "entity_name": r.entity_name,
                 "entity_id": r.entity_id,
                 "invoice_no": getattr(r, "invoice_no", None),
+                "reference_no": getattr(r, "invoice_no", None) or r.entity_id,
                 "notes": r.notes,
-                "created_at": r.created_at
+                "created_at": r.created_at,
+                "type": _resolve_type(r)
             }
             for r in records
         ]
