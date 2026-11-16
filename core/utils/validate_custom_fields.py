@@ -1,16 +1,25 @@
-from typing import List, Dict
+from typing import List, Dict, Any, Optional
 from fastapi import HTTPException
 from icecream import ic
 from hyperlocal_platform.core.models.req_res_models import ErrorResponseTypDict
 
-def validate_and_filter_custom_fields(payload_custom_fields: Dict, defined_custom_fields: List[Dict]) -> Dict:
+def validate_and_filter_custom_fields(payload_custom_fields: Optional[Dict], defined_custom_fields: Any) -> Dict:
     """
     Validates the provided custom fields against the defined custom fields.
     - If no defined custom fields, ignore the payload and return {}.
     - Checks for missing required fields and raises HTTPException.
     - Filters out any fields in payload that are not defined.
     """
-    if not defined_custom_fields or not isinstance(defined_custom_fields, list):
+    if not defined_custom_fields:
+        return {}
+
+    if isinstance(defined_custom_fields, dict):
+        if "items" in defined_custom_fields and isinstance(defined_custom_fields["items"], list):
+            defined_custom_fields = defined_custom_fields["items"]
+        else:
+            defined_custom_fields = list(defined_custom_fields.values())
+
+    if not isinstance(defined_custom_fields, (list, tuple, set)):
         return {}
 
     defined_by_name = {field['field_name']: field for field in defined_custom_fields if isinstance(field, dict) and 'field_name' in field}
