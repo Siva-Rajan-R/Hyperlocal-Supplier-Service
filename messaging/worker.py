@@ -2,50 +2,59 @@ from .main import RabbitMQMessagingConfig,ExchangeType
 from .controllers.service_controller import service_main_controller
 from .msgqueue_consumers.shopconfig_msgqueue_consumer import ShopConfigMsgQueueConsumer
 import asyncio
+from icecream import ic
 
 async def worker():
-    rabbitmq_conn=await RabbitMQMessagingConfig.get_rabbitmq_connection()
-    rabbitmq_msg_obj=RabbitMQMessagingConfig(rabbitMQ_connection=rabbitmq_conn)
+    while True:
+        rabbitmq_conn = None
+        try:
+            rabbitmq_conn=await RabbitMQMessagingConfig.get_rabbitmq_connection()
+            rabbitmq_msg_obj=RabbitMQMessagingConfig(rabbitMQ_connection=rabbitmq_conn)
 
-    # Exchanges
-    exchanges=[
-        {'name':'suppliers.service.exchange','exc_type':ExchangeType.DIRECT},
-        {'name':'hyperlocal_domain_events','exc_type':ExchangeType.DIRECT}
-    ]
+            # Exchanges
+            exchanges=[
+                {'name':'suppliers.service.exchange','exc_type':ExchangeType.DIRECT},
+                {'name':'hyperlocal_domain_events','exc_type':ExchangeType.DIRECT}
+            ]
 
-    for exchange in exchanges:
-        await rabbitmq_msg_obj.create_exchange(name=exchange['name'],exchange_type=exchange['exc_type'])
+            for exchange in exchanges:
+                await rabbitmq_msg_obj.create_exchange(name=exchange['name'],exchange_type=exchange['exc_type'])
 
-    # Queues
-    queues=[
-        {'exc_name':'suppliers.service.exchange','q_name':'suppliers.service.queue','r_key':'suppliers.service.routing.key'},
-        {'exc_name':'hyperlocal_domain_events','q_name':'supplier_service_shopconfig_q','r_key':'hyperlocal.shopconfig.updated'}
-    ]
+            # Queues
+            queues=[
+                {'exc_name':'suppliers.service.exchange','q_name':'suppliers.service.queue','r_key':'suppliers.service.routing.key'},
+                {'exc_name':'hyperlocal_domain_events','q_name':'supplier_service_shopconfig_q','r_key':'hyperlocal.shopconfig.updated'}
+            ]
 
-    for queue in queues:
-        queue=await rabbitmq_msg_obj.create_queue(
-            exchange_name=queue['exc_name'],
-            queue_name=queue['q_name'],
-            routing_key=queue['r_key']
-        )
+            for queue in queues:
+                queue=await rabbitmq_msg_obj.create_queue(
+                    exchange_name=queue['exc_name'],
+                    queue_name=queue['q_name'],
+                    routing_key=queue['r_key']
+                )
 
-    # Consumers
-    consumers=[
-        {'q_name':'suppliers.service.queue','handler':service_main_controller}
-    ]
+            # Consumers
+            consumers=[
+                {'q_name':'suppliers.service.queue','handler':service_main_controller}
+            ]
 
-    for consumer in consumers:
+            for consumer in consumers:
+                await rabbitmq_msg_obj.consume_event(queue_name=consumer['q_name'],handler=consumer['handler'])
 
-        await rabbitmq_msg_obj.consume_event(queue_name=consumer['q_name'],handler=consumer['handler'])
+            # Start ShopConfig Consumer
+            shop_config_consumer = ShopConfigMsgQueueConsumer()
+            await shop_config_consumer.consume()
 
-    # Start ShopConfig Consumer
-    shop_config_consumer = ShopConfigMsgQueueConsumer()
-    await shop_config_consumer.consume()
-
-    try:
-        await asyncio.Event().wait()
-    except asyncio.CancelledError:
-        pass
-    finally:
-        if rabbitmq_conn and not rabbitmq_conn.is_closed:
-            await rabbitmq_conn.close()
+            ic("Supplier Service RabbitMQ Worker is now listening for events")
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            ic("Supplier Service RabbitMQ Worker error, retrying in 5 seconds:", e)
+            await asyncio.sleep(5)
+        finally:
+            if rabbitmq_conn and not rabbitmq_conn.is_closed:
+                try:
+                    await rabbitmq_conn.close()
+                except Exception:
+                    pass
